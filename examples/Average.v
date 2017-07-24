@@ -554,6 +554,7 @@ reflexivity.
 apply f_equal.
 ring.
 rewrite round_N_middle.
+unfold choiceNE.
 rewrite H5.
 rewrite H6.
 reflexivity.
@@ -943,7 +944,7 @@ pattern y at 2; replace y with (x + (y-x)) by ring.
 apply Rplus_le_compat_l.
 case (generic_format_EM radix2 (FLT_exp emin prec) (y-x)); intros K.
 apply round_le_generic...
-rewrite round_generic...
+rewrite round_generic with (1 := K).
 apply Rmult_le_reg_l with (1 := Rlt_0_2).
 apply Rplus_le_reg_l with (2*x-y).
 apply Rle_trans with x.
@@ -956,8 +957,8 @@ apply generic_format_round...
 apply Rmult_le_reg_l with (1 := Rlt_0_2).
 apply Rle_trans with (round_flt (y - x)).
 right; field.
-case (round_DN_or_UP radix2 (FLT_exp emin prec) ZnearestE (y-x));
-   intros H1; rewrite H1.
+case (round_DN_or_UP radix2 (FLT_exp emin prec) [>> Zrnd ZnearestE] (y-x));
+   intros H1; simpl in H1; rewrite H1.
 apply Rplus_le_reg_l with (-round radix2 (FLT_exp emin prec) Zfloor (y - x)).
 ring_simplify.
 now left.
@@ -982,9 +983,9 @@ apply round_DN_pt...
 (* .. *)
 case M; intros H1.
 2: rewrite H1; replace (y-y) with 0 by ring.
-2: rewrite round_0...
+2: rewrite round_0.
 2: unfold Rdiv; rewrite Rmult_0_l.
-2: rewrite round_0...
+2: rewrite round_0.
 2: right; ring.
 apply Rle_trans with (x+0).
 2: rewrite Rplus_0_r; assumption.
@@ -1029,7 +1030,7 @@ reflexivity.
 Qed.
 
 Lemma avg_half_sub_between: Rmin x y <= av <= Rmax x y.
-Proof with auto with typeclass_instances.
+Proof.
 case (Rle_or_lt x y); intros M.
 (* x <= y *)
 rewrite Rmin_left; try exact M.
@@ -1053,7 +1054,7 @@ Qed.
 
 
 Lemma avg_half_sub_zero: a = 0 -> av = 0.
-Proof with auto with typeclass_instances.
+Proof.
 intros H.
 assert (y=-x).
 apply Rplus_eq_reg_l with x.
@@ -1065,11 +1066,11 @@ lra.
 unfold av, avg_half_sub.
 rewrite H0.
 replace (-x-x) with (-(2*x)) by ring.
-rewrite round_generic with (x:=(-(2*x)))...
+rewrite round_generic with (x:=(-(2*x))).
 replace (-(2*x)/2) with (-x) by field.
 rewrite round_generic with (x:=-x)...
 replace (x+-x) with 0 by ring.
-apply round_0...
+apply round_0.
 now apply generic_format_opp.
 apply generic_format_opp.
 now apply FLT_format_double.
@@ -1114,7 +1115,7 @@ destruct Ff as [g H1 H2 H3].
 case (Zle_lt_or_eq emin (Fexp g)); try exact H3; intros H4.
 contradict Hf2.
 apply Rlt_not_le.
-rewrite round_generic...
+rewrite round_generic.
 apply Rplus_lt_reg_l with (-(f/2)).
 apply Rle_lt_trans with 0;[right; ring|idtac].
 apply Rlt_le_trans with (f*/2);[idtac|right;field].
@@ -1228,7 +1229,7 @@ Qed.
 Lemma avg_half_sub_no_underflow_aux3: forall u v, format u -> format v -> 
     (0 <= u /\ 0 <= v) \/ (u <= 0 /\ v <= 0) ->
    (bpow emin) <= Rabs ((u+v)/2) -> avg_half_sub u v <> 0.
-Proof with auto with typeclass_instances.
+Proof.
 clear Fx Fy a av x y; intros x y Fx Fy.
 intros same_sign H.
 case (Rle_or_lt x y); intros H1.
@@ -1253,7 +1254,7 @@ Qed.
 Lemma avg_half_sub_no_underflow: 
   (0 <= x /\ 0 <= y) \/ (x <= 0 /\ y <= 0) ->
   (bpow emin) <= Rabs a -> av <> 0.
-Proof with auto with typeclass_instances.
+Proof.
 intros; now apply avg_half_sub_no_underflow_aux3.
 Qed.
 

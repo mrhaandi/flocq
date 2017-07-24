@@ -862,10 +862,23 @@ Definition choice_mode m sx mx lx :=
   | mode_NA => cond_incr (round_N true lx) mx
   end.
 
-Global Instance valid_rnd_round_mode : forall m, Valid_rnd (round_mode m).
+Lemma round_mode_le :
+  forall (m : mode) (x y : R),
+  (x <= y)%R ->
+  (round_mode m x <= round_mode m y)%Z.
 Proof.
-destruct m ; unfold round_mode ; auto with typeclass_instances.
+intros [| | | |] ; apply Zrnd_le.
 Qed.
+
+Lemma round_mode_Z2R :
+  forall (m : mode) (n : Z),
+  round_mode m (Z2R n) = n.
+Proof.
+intros [| | | |] ; apply Zrnd_Z2R.
+Qed.
+
+Canonical Structure valid_round_mode m :=
+  Build_Valid_rnd (round_mode m) (round_mode_le m) (round_mode_Z2R m).
 
 Definition overflow_to_inf m s :=
   match m with
@@ -905,7 +918,8 @@ intros m x mx ex lx Bx Ex z.
 unfold binary_round_aux in z.
 revert z.
 rewrite shr_truncate. 2: easy.
-refine (_ (round_trunc_sign_any_correct _ _ (round_mode m) (choice_mode m) _ x (Zpos mx) ex lx Bx (or_introl _ Ex))).
+refine (_ (round_trunc_sign_any_correct _ _ [>> Zrnd round_mode m] (choice_mode m) _ x (Zpos mx) ex lx Bx (or_introl _ Ex))).
+simpl Zrnd.
 refine (_ (truncate_correct_partial _ _ _ _ _ _ _ Bx Ex)).
 destruct (truncate radix2 fexp (Zpos mx, ex, lx)) as ((m1, e1), l1).
 rewrite loc_of_shr_record_of_loc, shr_m_shr_record_of_loc.
@@ -957,6 +971,7 @@ rewrite H1b.
 rewrite cexp_abs.
 fold (cexp radix2 fexp (round radix2 fexp (round_mode m) x)).
 apply cexp_round_ge...
+simpl Zrnd.
 rewrite H1c.
 case (Rlt_bool x 0).
 apply Rlt_not_eq.
@@ -1145,7 +1160,7 @@ Theorem Bmult_correct :
     B2FF (Bmult mult_nan m x y) = binary_overflow m (xorb (Bsign x) (Bsign y)).
 Proof.
 intros mult_nan m [sx|sx|sx plx Hplx|sx mx ex Hx] [sy|sy|sy ply Hply|sy my ey Hy] ;
-  try ( rewrite ?Rmult_0_r, ?Rmult_0_l, round_0, Rabs_R0, Rlt_bool_true ; [ simpl ; try easy ; now rewrite B2R_build_nan, is_finite_build_nan, is_nan_build_nan | apply bpow_gt_0 | now auto with typeclass_instances ] ).
+  try ( rewrite ?Rmult_0_r, ?Rmult_0_l, round_0, Rabs_R0, Rlt_bool_true ; [ simpl ; try easy ; now rewrite B2R_build_nan, is_finite_build_nan, is_nan_build_nan | apply bpow_gt_0 ] ).
 simpl.
 case Bmult_correct_aux.
 intros H1.
@@ -1725,7 +1740,7 @@ intros div_nan m x [sy|sy|sy ply|sy my ey Hy] Zy ; try now elim Zy.
 revert x.
 unfold Rdiv.
 intros [sx|sx|sx plx Hx|sx mx ex Hx] ;
-  try ( rewrite Rmult_0_l, round_0, Rabs_R0, Rlt_bool_true ; [ simpl ; try easy ; now rewrite B2R_build_nan, is_finite_build_nan, is_nan_build_nan | apply bpow_gt_0 | auto with typeclass_instances ] ).
+  try ( rewrite Rmult_0_l, round_0, Rabs_R0, Rlt_bool_true ; [ simpl ; try easy ; now rewrite B2R_build_nan, is_finite_build_nan, is_nan_build_nan | apply bpow_gt_0 ] ).
 simpl.
 case Bdiv_correct_aux.
 intros H1.
@@ -1789,7 +1804,8 @@ rewrite Rlt_bool_true.
 easy.
 (* .. *)
 rewrite Rabs_pos_eq.
-refine (_ (relative_error_FLT_ex radix2 emin prec (prec_gt_0 prec) (round_mode m) (sqrt (F2R (Float radix2 (Zpos mx) ex))) _)).
+refine (_ (relative_error_FLT_ex radix2 emin prec (prec_gt_0 prec) [>> Zrnd round_mode m] (sqrt (F2R (Float radix2 (Zpos mx) ex))) _)).
+simpl Zrnd.
 fold fexp.
 intros (eps, (Heps, Hr)).
 rewrite Hr.

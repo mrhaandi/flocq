@@ -63,11 +63,11 @@ Variable choice : Z -> bool.
 
 (** Remainder of the division in FLX *)
 Theorem div_error_FLX :
-  forall rnd { Zrnd : Valid_rnd rnd } x y,
+  forall (rnd : Valid_rnd) x y,
   format x -> format y ->
   format (x - round beta (FLX_exp prec) rnd (x/y) * y)%R.
 Proof with auto with typeclass_instances.
-intros rnd Zrnd x y Hx Hy.
+intros rnd x y Hx Hy.
 destruct (Req_dec y 0) as [Zy|Zy].
 now rewrite Zy, Rmult_0_r, Rminus_0_r.
 destruct (Req_dec (round beta (FLX_exp prec) rnd (x/y)) 0) as [Hr|Hr].

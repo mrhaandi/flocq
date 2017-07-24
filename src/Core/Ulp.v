@@ -1102,7 +1102,6 @@ rewrite H0; ring_simplify (-fexp n + fexp n)%Z.
 simpl; rewrite Rmult_1_l, Rmult_1_r.
 apply H.
 rewrite <- P, round_0; trivial.
-apply valid_rnd_DN.
 Qed.
 
 
@@ -1110,7 +1109,7 @@ Theorem round_UP_plus_eps_pos :
   forall x, (0 <= x)%R -> F x ->
   forall eps, (0 < eps <= ulp x)%R ->
   round beta fexp Zceil (x + eps) = (x + ulp x)%R.
-Proof with auto with typeclass_instances.
+Proof.
 intros x Zx Fx eps.
 case Zx; intros Zx1.
 (* . 0 < x *)
@@ -1128,12 +1127,12 @@ now rewrite mag_plus_eps.
 now apply Rgt_not_eq.
 now apply Rgt_not_eq, Rplus_lt_0_compat.
 intros Fs.
-rewrite round_generic in Hd...
+rewrite round_generic with (1 := Fs) in Hd.
 apply Rgt_not_eq with (2 := Hd).
 pattern x at 2 ; rewrite <- Rplus_0_r.
 now apply Rplus_lt_compat_l.
 rewrite Heps2.
-apply round_generic...
+apply round_generic.
 now apply generic_format_succ_aux1.
 (* . x=0 *)
 rewrite <- Zx1, 2!Rplus_0_l.
@@ -1143,9 +1142,11 @@ unfold round, scaled_mantissa, cexp.
 unfold ulp.
 rewrite Req_bool_true; trivial.
 case negligible_exp_spec.
-intros H2.
-intros J; absurd (0 < 0)%R; auto with real.
-apply Rlt_trans with eps; try assumption; apply Heps.
+intros H2 J.
+exfalso.
+apply (Rlt_irrefl 0).
+apply Rlt_trans with (2 := J).
+apply Heps.
 intros n Hn H.
 assert (fexp (mag beta eps) = fexp n).
 apply valid_exp; try assumption.
@@ -1170,10 +1171,9 @@ rewrite H0; ring_simplify (-fexp n + fexp n)%Z.
 simpl; rewrite Rmult_1_l, Rmult_1_r.
 now left.
 intros P; rewrite P.
-apply round_generic...
+apply round_generic.
 apply generic_format_ulp_0.
 Qed.
-
 
 Theorem round_UP_pred_plus_eps_pos :
   forall x, (0 < x)%R -> F x ->
@@ -1670,14 +1670,14 @@ Qed.
 (** false for x=0 in the FLX format *)
 (* was ulp_error *)
 Theorem error_lt_ulp :
-  forall rnd { Zrnd : Valid_rnd rnd } x,
-   (x <> 0)%R ->
+  forall (rnd : Valid_rnd) x,
+  (x <> 0)%R ->
   (Rabs (round beta fexp rnd x - x) < ulp x)%R.
 Proof with auto with typeclass_instances.
-intros rnd Zrnd x Zx.
+intros rnd x Zx.
 destruct (generic_format_EM beta fexp x) as [Hx|Hx].
 (* x = rnd x *)
-rewrite round_generic...
+rewrite round_generic with (1 := Hx).
 unfold Rminus.
 rewrite Rplus_opp_r, Rabs_R0.
 rewrite ulp_neq_0; trivial.
@@ -1717,12 +1717,12 @@ Qed.
 
 (* was ulp_error_le *)
 Theorem error_le_ulp :
-  forall rnd { Zrnd : Valid_rnd rnd } x,
+  forall (rnd: Valid_rnd) x,
   (Rabs (round beta fexp rnd x - x) <= ulp x)%R.
-Proof with auto with typeclass_instances.
-intros  rnd Zrnd x.
+Proof.
+intros rnd x.
 case (Req_dec x 0).
-intros Zx; rewrite Zx, round_0...
+intros Zx; rewrite Zx, round_0.
 unfold Rminus; rewrite Rplus_0_l, Ropp_0, Rabs_R0.
 apply ulp_ge_0.
 intros Zx; left.
@@ -1733,11 +1733,11 @@ Qed.
 Theorem error_le_half_ulp :
   forall choice x,
   (Rabs (round beta fexp (Znearest choice) x - x) <= /2 * ulp x)%R.
-Proof with auto with typeclass_instances.
+Proof.
 intros choice x.
 destruct (generic_format_EM beta fexp x) as [Hx|Hx].
 (* x = rnd x *)
-rewrite round_generic...
+rewrite round_generic with (1 := Hx).
 unfold Rminus.
 rewrite Rplus_opp_r, Rabs_R0.
 apply Rmult_le_pos.
@@ -1784,25 +1784,24 @@ rewrite Hu.
 apply (round_UP_pt beta fexp x).
 Qed.
 
-
 Theorem ulp_DN :
   forall x,
   (0 < round beta fexp Zfloor x)%R ->
   ulp (round beta fexp Zfloor x) = ulp x.
-Proof with auto with typeclass_instances.
+Proof.
 intros x Hd.
 rewrite 2!ulp_neq_0.
 now rewrite cexp_DN with (2 := Hd).
-intros T; contradict Hd; rewrite T, round_0...
+intros T; contradict Hd; rewrite T, round_0.
 apply Rlt_irrefl.
 now apply Rgt_not_eq.
 Qed.
 
 Theorem round_neq_0_negligible_exp:
-    negligible_exp=None -> forall rnd { Zrnd : Valid_rnd rnd } x,
-   (x <> 0)%R ->  (round beta fexp rnd x <> 0)%R.
+  negligible_exp = None -> forall (rnd : Valid_rnd) x,
+  x <> 0%R -> round beta fexp rnd x <> 0%R.
 Proof with auto with typeclass_instances.
-intros H rndn Hrnd x Hx K.
+intros H rndn x Hx K.
 case negligible_exp_spec'.
 intros (_,Hn).
 destruct (mag beta x) as (e,He).
@@ -1818,15 +1817,15 @@ Qed.
 (** allows rnd x to be 0 *)
 (* was ulp_error_f *)
 Theorem error_lt_ulp_round :
-  forall { Hm : Monotone_exp fexp } rnd { Zrnd : Valid_rnd rnd } x,
-  ( x <> 0)%R ->
+  forall { Hm : Monotone_exp fexp } (rnd : Valid_rnd) x,
+  x <> 0%R ->
   (Rabs (round beta fexp rnd x - x) < ulp (round beta fexp rnd x))%R.
 Proof with auto with typeclass_instances.
 intros Hm.
 (* wlog *)
-cut (forall rnd : R -> Z, Valid_rnd rnd -> forall x : R, (0 < x)%R  ->
+cut (forall rnd : Valid_rnd, forall x : R, (0 < x)%R  ->
     (Rabs (round beta fexp rnd x - x) < ulp (round beta fexp rnd x))%R).
-intros M rnd Hrnd x Zx.
+intros M rnd x Zx.
 case (Rle_or_lt 0 x).
 intros H; destruct H.
 now apply M.
@@ -1838,10 +1837,9 @@ replace (- round beta fexp (Zrnd_opp rnd) (- x) - - - x)%R with
     (-(round beta fexp (Zrnd_opp rnd) (- x) - (-x)))%R by ring.
 rewrite Rabs_Ropp.
 apply M.
-now apply valid_rnd_opp.
 now apply Ropp_0_gt_lt_contravar.
 (* 0 < x *)
-intros rnd Hrnd x Hx.
+intros rnd x Hx.
 case (Rle_lt_or_eq_dec 0 (round beta fexp Zfloor x)).
 apply round_ge_generic...
 apply generic_format_0.
@@ -1918,8 +1916,8 @@ case (Req_dec (round beta fexp (Znearest choice) x) 0); intros Hfx.
 (* *)
 case (Req_dec x 0); intros Hx.
 apply Rle_trans with (1:=error_le_half_ulp _ _).
-rewrite Hx, round_0...
-right; ring.
+rewrite Hx, round_0.
+apply Rle_refl.
 generalize (error_le_half_ulp choice x).
 rewrite Hfx.
 unfold Rminus; rewrite Rplus_0_l, Rabs_Ropp.
@@ -1928,7 +1926,7 @@ unfold ulp; rewrite Req_bool_true; trivial.
 case negligible_exp_spec'.
 intros (H1,H2).
 contradict Hfx.
-apply round_neq_0_negligible_exp...
+now apply round_neq_0_negligible_exp.
 intros (n,(H1,Hn)); rewrite H1.
 apply Rle_trans with (1:=N).
 right; apply f_equal.
@@ -1947,11 +1945,11 @@ right; rewrite Hfx; unfold Rminus; rewrite Rplus_0_l.
 apply sym_eq, Rabs_Ropp.
 apply Rlt_le_trans with (ulp 0).
 rewrite <- Hfx.
-apply error_lt_ulp_round...
+now apply error_lt_ulp_round.
 unfold ulp; rewrite Req_bool_true, H1; trivial.
 now right.
 (* *)
-case (round_DN_or_UP beta fexp (Znearest choice) x); intros Hx.
+case (round_DN_or_UP beta fexp [>> Zrnd Znearest choice] x); simpl; intros Hx.
 (* . *)
 case (Rle_or_lt 0 (round beta fexp Zfloor x)).
 intros H; destruct H.
@@ -2091,10 +2089,10 @@ Qed.
 
 Theorem pred_UP_le_DN :
   forall x, (pred (round beta fexp Zceil x) <= round beta fexp Zfloor x)%R.
-Proof with auto with typeclass_instances.
+Proof.
 intros x.
 destruct (generic_format_EM beta fexp x) as [Fx|Fx].
-rewrite !round_generic...
+rewrite !round_generic ; trivial.
 apply pred_le_id.
 case (Req_dec (round beta fexp Zceil x) 0); intros Zx.
 rewrite Zx; unfold pred; rewrite Ropp_0.
@@ -2102,7 +2100,7 @@ unfold succ; rewrite Rle_bool_true;[idtac|now right].
 rewrite Rplus_0_l; unfold ulp; rewrite Req_bool_true; trivial.
 case negligible_exp_spec'.
 intros (H1,H2).
-contradict Zx; apply round_neq_0_negligible_exp...
+contradict Zx; apply round_neq_0_negligible_exp with (1 := H1).
 intros L; apply Fx; rewrite L; apply generic_format_0.
 intros (n,(H1,Hn)); rewrite H1.
 case (Rle_or_lt (- bpow (fexp n)) (round beta fexp Zfloor x)); trivial; intros K.
@@ -2113,11 +2111,10 @@ apply Ropp_lt_contravar, bpow_gt_0.
 apply round_UP_le_gt_DN; try assumption.
 apply generic_format_opp, generic_format_bpow.
 now apply valid_exp.
-assert (let u := round beta fexp Zceil x in pred u < u)%R as Hup.
-now apply pred_lt_id.
-apply le_round_DN_lt_UP...
-apply generic_format_pred...
+apply le_round_DN_lt_UP.
+apply generic_format_pred.
 now apply round_UP_pt.
+now apply pred_lt_id.
 Qed.
 
 Theorem pred_UP_eq_DN :
@@ -2153,22 +2150,22 @@ generalize (round_DN_pt beta fexp x); intros (T1,(T2,T3)).
 apply sym_eq, Rle_antisym.
 now apply T3.
 destruct (generic_format_EM beta fexp x) as [Fx|NFx].
-rewrite round_generic...
+rewrite round_generic with (1 := Fx).
 apply succ_le_inv; try assumption.
 apply succ_le_lt; try assumption.
-apply generic_format_succ...
+now apply generic_format_succ.
 apply succ_le_inv; try assumption.
 rewrite succ_DN_eq_UP; trivial.
 apply round_UP_pt...
-apply generic_format_succ...
-now left.
+now apply generic_format_succ.
+now apply Rlt_le.
 Qed.
 
 (* was betw_eq_UP *)
 Theorem round_UP_eq_betw: forall x u, F u
     -> (pred u < x <= u)%R
     -> round beta fexp Zceil x = u.
-Proof with auto with typeclass_instances.
+Proof.
 intros x u Fu Hux.
 rewrite <- (Ropp_involutive (round beta fexp Zceil x)).
 rewrite <- round_DN_opp.

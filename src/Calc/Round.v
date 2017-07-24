@@ -823,8 +823,7 @@ Qed.
 
 Section round_dir.
 
-Variable rnd : R -> Z.
-Context { valid_rnd : Valid_rnd rnd }.
+Variable rnd : Valid_rnd.
 
 Variable choice : Z -> location -> Z.
 Hypothesis inbetween_int_valid :
@@ -837,7 +836,7 @@ Theorem round_any_correct :
   inbetween_float beta m e x l ->
   (e = cexp beta fexp x \/ (l = loc_Exact /\ format x)) ->
   round beta fexp rnd x = F2R (Float beta (choice m l) e).
-Proof with auto with typeclass_instances.
+Proof.
 intros x m e l Hin [He|(Hl,Hf)].
 rewrite He in Hin |- *.
 apply inbetween_float_round with (2 := Hin).
@@ -847,7 +846,7 @@ inversion_clear Hin.
 rewrite Hl.
 replace (choice m loc_Exact) with m.
 rewrite <- H.
-apply round_generic...
+now apply round_generic.
 rewrite <- (Zrnd_Z2R rnd m) at 1.
 apply inbetween_int_valid.
 now constructor.
@@ -873,8 +872,7 @@ End round_dir.
 
 Section round_dir_sign.
 
-Variable rnd : R -> Z.
-Context { valid_rnd : Valid_rnd rnd }.
+Variable rnd : Valid_rnd.
 
 Variable choice : bool -> Z -> location -> Z.
 Hypothesis inbetween_int_valid :
@@ -887,7 +885,7 @@ Theorem round_sign_any_correct :
   inbetween_float beta m e (Rabs x) l ->
   (e = cexp beta fexp x \/ (l = loc_Exact /\ format x)) ->
   round beta fexp rnd x = F2R (Float beta (cond_Zopp (Rlt_bool x 0) (choice (Rlt_bool x 0) m l)) e).
-Proof with auto with typeclass_instances.
+Proof.
 intros x m e l Hin [He|(Hl,Hf)].
 rewrite He in Hin |- *.
 apply inbetween_float_round_sign with (2 := Hin).
@@ -903,7 +901,7 @@ rewrite Rlt_bool_true with (1 := Zx).
 simpl.
 rewrite F2R_Zopp.
 rewrite <- H, Ropp_involutive.
-apply round_generic...
+now apply round_generic.
 rewrite Rlt_bool_false.
 simpl.
 rewrite <- H.

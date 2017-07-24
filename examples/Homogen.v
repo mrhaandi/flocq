@@ -241,7 +241,6 @@ rewrite Rplus_opp_r, Rabs_R0.
 apply Rmult_le_pos.
 now apply F2R_ge_0_compat.
 apply Rabs_pos.
-apply valid_rnd_N.
 apply FLT_format_plus_small ; try easy.
 now apply generic_format_opp.
 replace (F2R (Float radix2 1 (-53))) with (bpow radix2 (-1) * bpow radix2 (-53 + 1))%R.

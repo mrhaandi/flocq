@@ -31,8 +31,7 @@ Context { prec_gt_0_ : Prec_gt_0 prec }.
 Notation format := (generic_format beta (FLX_exp prec)).
 Notation cexp := (cexp beta (FLX_exp prec)).
 
-Variable rnd : R -> Z.
-Context { valid_rnd : Valid_rnd rnd }.
+Variable rnd : Valid_rnd.
 
 (** Auxiliary result that provides the exponent *)
 Lemma mult_error_FLX_aux:
@@ -48,9 +47,8 @@ intros x y Hx Hy Hz.
 set (f := (round beta (FLX_exp prec) rnd (x * y))).
 destruct (Req_dec (x * y) 0) as [Hxy0|Hxy0].
 contradict Hz.
-rewrite Hxy0.
-rewrite round_0...
-ring.
+rewrite Hxy0, Rminus_0_r.
+apply round_0.
 destruct (mag beta (x * y)) as (exy, Hexy).
 specialize (Hexy Hxy0).
 destruct (mag beta (f - x * y)) as (er, Her).
@@ -161,8 +159,7 @@ Context { prec_gt_0_ : Prec_gt_0 prec }.
 Notation format := (generic_format beta (FLT_exp emin prec)).
 Notation cexp := (cexp beta (FLT_exp emin prec)).
 
-Variable rnd : R -> Z.
-Context { valid_rnd : Valid_rnd rnd }.
+Variable rnd : Valid_rnd.
 
 (** Error of the multiplication in FLT with underflow requirements *)
 Theorem mult_error_FLT :
@@ -170,7 +167,7 @@ Theorem mult_error_FLT :
   format x -> format y ->
   (x*y = 0)%R \/ (bpow (emin + 2*prec - 1) <= Rabs (x * y))%R ->
   format (round beta (FLT_exp emin prec) rnd (x * y) - (x * y))%R.
-Proof with auto with typeclass_instances.
+Proof.
 intros x y Hx Hy Hxy.
 set (f := (round beta (FLT_exp emin prec) rnd (x * y))).
 destruct (Req_dec (f - x * y) 0) as [Hr0|Hr0].
@@ -178,9 +175,8 @@ rewrite Hr0.
 apply generic_format_0.
 destruct Hxy as [Hxy|Hxy].
 unfold f.
-rewrite Hxy.
-rewrite round_0...
-ring_simplify (0 - 0)%R.
+rewrite Hxy, Rminus_0_r.
+rewrite round_0.
 apply generic_format_0.
 destruct (mult_error_FLX_aux beta prec rnd x y) as ((m,e),(H1,(H2,H3))).
 now apply generic_format_FLX_FLT with emin.
@@ -206,12 +202,11 @@ unfold cexp, FLX_exp.
 apply Zle_refl.
 rewrite H3.
 unfold cexp, FLX_exp.
-assert (Hxy0:(x*y <> 0)%R).
+assert (Hxy0: (x*y <> 0)%R).
 contradict Hr0.
 unfold f.
-rewrite Hr0.
-rewrite round_0...
-ring.
+rewrite Hr0, Rminus_0_r.
+apply round_0.
 assert (Hx0: (x <> 0)%R).
 contradict Hxy0.
 now rewrite Hxy0, Rmult_0_l.

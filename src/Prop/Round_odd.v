@@ -31,15 +31,13 @@ Definition Zrnd_odd x :=  match Req_EM_T x (Z2R (Zfloor x))  with
      end
   end.
 
-
-
-Global Instance valid_rnd_odd : Valid_rnd Zrnd_odd.
+Lemma Zrnd_odd_le :
+  forall x y : R, (x <= y)%R ->
+  (Zrnd_odd x <= Zrnd_odd y)%Z.
 Proof.
-split.
-(* . *)
 intros x y Hxy.
 assert (Zfloor x <= Zrnd_odd y)%Z.
-(* .. *)
+(* . *)
 apply Zle_trans with (Zfloor y).
 now apply Zfloor_le.
 unfold Zrnd_odd; destruct (Req_EM_T  y (Z2R (Zfloor y))).
@@ -72,14 +70,20 @@ apply Z2R_le; omega.
 now apply sym_not_eq.
 contradict Hy2.
 rewrite <- H1, Hx2; discriminate.
-(* . *)
+Qed.
+
+Lemma Zrnd_odd_Z2R :
+  forall n : Z,
+  Zrnd_odd (Z2R n) = n.
+Proof.
 intros n; unfold Zrnd_odd.
 rewrite Zfloor_Z2R, Zceil_Z2R.
 destruct (Req_EM_T  (Z2R n) (Z2R n)); trivial.
-case (Zeven n); trivial.
+now case Zeven.
 Qed.
 
-
+Canonical Structure Valid_Zrnd_odd :=
+  Build_Valid_rnd Zrnd_odd Zrnd_odd_le Zrnd_odd_Z2R.
 
 Lemma Zrnd_odd_Zodd: forall x, x <> (Z2R (Zfloor x)) ->
   (Zeven (Zrnd_odd x)) = false.
@@ -216,7 +220,7 @@ intros H x; case (Rle_or_lt 0 x).
 intros H1; destruct H1.
 now apply H.
 rewrite <- H0.
-rewrite round_0...
+rewrite round_0.
 split.
 apply generic_format_0.
 now left.
@@ -226,7 +230,8 @@ apply H.
 auto with real.
 (* *)
 intros x Hxp.
-generalize (generic_format_round beta fexp Zrnd_odd x).
+generalize (generic_format_round beta fexp [>> Zrnd Zrnd_odd] x).
+simpl.
 set (o:=round beta fexp Zrnd_odd x).
 intros Ho.
 split.
@@ -237,7 +242,7 @@ now left.
 right.
 assert (o=round beta fexp Zfloor x \/ o=round beta fexp Zceil x).
 unfold o, round, F2R;simpl.
-case (Zrnd_DN_or_UP Zrnd_odd  (scaled_mantissa beta fexp x))...
+case (Zrnd_DN_or_UP [>> Zrnd Zrnd_odd] (scaled_mantissa beta fexp x)) ; simpl.
 intros H; rewrite H; now left.
 intros H; rewrite H; now right.
 split.
@@ -249,8 +254,8 @@ unfold o, Zrnd_odd, round.
 case (Req_EM_T (scaled_mantissa beta fexp x)
      (Z2R (Zfloor (scaled_mantissa beta fexp x)))).
 intros T.
-absurd (o=x); trivial.
-apply round_generic...
+elim Hx.
+apply round_generic.
 unfold generic_format, F2R; simpl.
 rewrite <- (scaled_mantissa_mult_bpow beta fexp) at 1.
 apply f_equal2; trivial; rewrite T at 1.
@@ -261,7 +266,8 @@ apply bpow_ge_0.
 intros L.
 case_eq (Zeven (Zfloor (scaled_mantissa beta fexp x))).
 (* . *)
-generalize (generic_format_round beta fexp Zceil x).
+generalize (generic_format_round beta fexp [>> Zrnd Zceil] x).
+simpl Zrnd.
 unfold generic_format.
 set (f:=round beta fexp Zceil x).
 set (ef := cexp f).
@@ -276,7 +282,7 @@ apply trans_eq with (negb (Zeven (Fnum
   (Float beta  (Zfloor (scaled_mantissa beta fexp x)) (cexp x))))).
 2: reflexivity.
 case (Rle_lt_or_eq_dec 0 (round beta fexp Zfloor x)).
-rewrite <- round_0 with beta fexp Zfloor...
+rewrite <- round_0 with beta fexp [>> Zrnd Zfloor].
 apply round_le...
 now left.
 intros Y.
@@ -333,7 +339,7 @@ apply Rgt_not_eq, bpow_gt_0.
 (* . *)
 intros Y.
 case (Rle_lt_or_eq_dec 0 (round beta fexp Zfloor x)).
-rewrite <- round_0 with beta fexp Zfloor...
+rewrite <- round_0 with beta fexp [>> Zrnd Zfloor].
 apply round_le...
 now left.
 intros Hrx.
@@ -639,7 +645,7 @@ Qed.
 
 Lemma mag_m_0: (0 = F2R d)%R
     -> (mag beta m =mag beta (F2R u)-1:>Z)%Z.
-Proof with auto with typeclass_instances.
+Proof.
 intros Y.
 apply mag_unique_pos.
 unfold m; rewrite <- Y, Rplus_0_l.
@@ -665,8 +671,9 @@ unfold Rdiv; apply Rmult_lt_compat_l.
 apply bpow_gt_0.
 lra.
 now apply He, Rgt_not_eq.
-apply exp_small_round_0_pos with beta (Zfloor) x...
+apply exp_small_round_0_pos with beta [>> Zrnd Zfloor] x.
 now apply He, Rgt_not_eq.
+simpl Zrnd.
 now rewrite <- d_eq, Y.
 Qed.
 
@@ -675,7 +682,7 @@ Qed.
 
 
 Lemma u'_eq:  (0 < F2R d)%R -> exists f:float beta, F2R f = F2R u /\ (Fexp f = Fexp d)%Z.
-Proof with auto with typeclass_instances.
+Proof.
 intros Y.
 rewrite u_eq; unfold round.
 eexists; repeat split.
@@ -685,7 +692,7 @@ Qed.
 
 Lemma m_eq: (0 < F2R d)%R ->  exists f:float beta,
    F2R f = m /\ (Fexp f = fexp (mag beta x) -1)%Z.
-Proof with auto with typeclass_instances.
+Proof.
 intros Y.
 specialize (Zeven_ex (radix_val beta)); rewrite Even_beta.
 intros (b, Hb); rewrite Zplus_0_r in Hb.
@@ -714,7 +721,7 @@ Qed.
 
 Lemma m_eq_0: (0 = F2R d)%R ->  exists f:float beta,
    F2R f = m /\ (Fexp f = fexp (mag beta (F2R u)) -1)%Z.
-Proof with auto with typeclass_instances.
+Proof.
 intros Y.
 specialize (Zeven_ex (radix_val beta)); rewrite Even_beta.
 intros (b, Hb); rewrite Zplus_0_r in Hb.
@@ -737,7 +744,7 @@ Qed.
 
 Lemma fexp_m_eq_0:  (0 = F2R d)%R ->
   (fexp (mag beta (F2R u)-1) < fexp (mag beta (F2R u))+1)%Z.
-Proof with auto with typeclass_instances.
+Proof.
 intros Y.
 assert ((fexp (mag beta (F2R u) - 1) <= fexp (mag beta (F2R u))))%Z.
 2: omega.
@@ -745,8 +752,9 @@ destruct (mag beta x) as (e,He).
 rewrite Rabs_right in He.
 2: now left.
 assert (e <= fexp e)%Z.
-apply exp_small_round_0_pos with beta (Zfloor) x...
+apply exp_small_round_0_pos with beta [>> Zrnd Zfloor] x.
 now apply He, Rgt_not_eq.
+simpl Zrnd.
 now rewrite <- d_eq, Y.
 rewrite u_eq, round_UP_small_pos with (ex:=e); trivial.
 2: now apply He, Rgt_not_eq.
@@ -825,9 +833,9 @@ intros Y; apply Rle_antisym; trivial.
 apply round_DN_pt...
 apply Hd.
 apply Hz1.
-intros Y; absurd (z < z)%R.
-auto with real.
-apply Rlt_le_trans with (1:=proj2 Hz1), Rle_trans with (1:=Y).
+intros Y.
+elim Rle_not_lt with (1 := Y).
+apply Rle_lt_trans with (2:=proj2 Hz1).
 apply round_DN_pt...
 Qed.
 

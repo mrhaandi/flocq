@@ -207,16 +207,15 @@ Qed.
 Section FTZ_round.
 
 (** Rounding with FTZ *)
-Variable rnd : R -> Z.
-Context { valid_rnd : Valid_rnd rnd }.
+Variable rnd : Valid_rnd.
 
 Definition Zrnd_FTZ x :=
   if Rle_bool 1 (Rabs x) then rnd x else Z0.
 
-Global Instance valid_rnd_FTZ : Valid_rnd Zrnd_FTZ.
-Proof with auto with typeclass_instances.
-split.
-(* *)
+Lemma Zrnd_FTZ_le :
+  forall x y, (x <= y)%R ->
+  (Zrnd_FTZ x <= Zrnd_FTZ y)%Z.
+Proof.
 intros x y Hxy.
 unfold Zrnd_FTZ.
 case Rle_bool_spec ; intros Hx ;
@@ -235,7 +234,7 @@ apply Rle_trans with (1 := Hxy).
 apply RRle_abs.
 (* |x| < 1 *)
 rewrite <- (Zrnd_Z2R rnd 0).
-apply Zrnd_le...
+apply Zrnd_le.
 apply Rle_trans with (Z2R 1).
 now apply Z2R_le.
 destruct (Rabs_ge_inv _ _ Hy) as [Hy1|Hy1].
@@ -243,10 +242,14 @@ elim Rle_not_lt with (1 := Hy1).
 apply Rlt_le_trans with (2 := Hxy).
 apply (Rabs_def2 _ _ Hx).
 exact Hy1.
-(* *)
+Qed.
+
+Lemma Zrnd_FTZ_Z2R :
+  forall x, Zrnd_FTZ (Z2R x) = x.
+Proof.
 intros n.
 unfold Zrnd_FTZ.
-rewrite Zrnd_Z2R...
+rewrite Zrnd_Z2R.
 case Rle_bool_spec.
 easy.
 rewrite <- Z2R_abs.
@@ -255,6 +258,9 @@ generalize (lt_Z2R _ 1 H).
 clear.
 now case n ; trivial ; simpl ; intros [p|p|].
 Qed.
+
+Canonical Structure valid_rnd_FTZ :=
+  Build_Valid_rnd Zrnd_FTZ Zrnd_FTZ_le Zrnd_FTZ_Z2R.
 
 Theorem round_FTZ_FLX :
   forall x : R,
@@ -301,11 +307,11 @@ Theorem round_FTZ_small :
   forall x : R,
   (Rabs x < bpow (emin + prec - 1))%R ->
   round beta FTZ_exp Zrnd_FTZ x = R0.
-Proof with auto with typeclass_instances.
+Proof.
 intros x Hx.
 destruct (Req_dec x 0) as [Hx0|Hx0].
 rewrite Hx0.
-apply round_0...
+apply round_0.
 unfold round, scaled_mantissa, cexp.
 destruct (mag beta x) as (ex, He). simpl.
 specialize (He Hx0).

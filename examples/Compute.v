@@ -12,8 +12,7 @@ Hypothesis Hprec : (0 < prec)%Z.
 Hypothesis fexp_prec :
   forall e, (e - prec <= fexp e)%Z.
 
-Variable rnd : R -> Z.
-Context { valid_rnd : Valid_rnd rnd }.
+Variable rnd : Valid_rnd.
 
 Variable choice : bool -> Z -> location -> Z.
 Hypothesis rnd_choice :

@@ -205,8 +205,8 @@ set (ex1 := fexp1 (mag x)).
 set (ex2 := fexp2 (mag x)).
 set (rx1 := round beta fexp1 Zfloor x).
 assert (Prx1 : 0 <= rx1).
-{ rewrite <- (round_0 beta fexp1 Zfloor).
-  now apply round_le; [exact Vfexp1|apply valid_rnd_DN|apply Rlt_le]. }
+{ rewrite <- (round_0 beta fexp1 [>> Zrnd Zfloor]).
+  now apply round_le; [exact Vfexp1|apply Rlt_le]. }
 assert (Hrx1 : rx1 = Z2R (Zfloor (rx1 * bpow (- ex1))) * bpow ex1).
 { unfold rx1 at 2; unfold round, F2R, scaled_mantissa, cexp; simpl.
   unfold ex1; bpow_simplify.
@@ -258,7 +258,7 @@ assert (Hrx2r : rx2 = round beta fexp2 Zfloor x).
 destruct (Rle_or_lt rx2 0) as [Nprx2|Prx2].
 { (* rx2 = 0 *)
   assert (Zrx2 : rx2 = 0); [now apply Rle_antisym|].
-  rewrite Zrx2, round_0; [|now apply valid_rnd_N].
+  rewrite Zrx2, round_0.
   unfold round, F2R, scaled_mantissa, cexp; simpl.
   apply (Rmult_eq_reg_r (bpow (- fexp1 (mag x))));
     [|now apply Rgt_not_eq, bpow_gt_0]; rewrite Rmult_0_l; bpow_simplify.
@@ -324,11 +324,11 @@ assert (Hbeta : (2 <= beta)%Z).
   now apply Zle_bool_imp_le. }
 destruct (generic_format_EM beta fexp2 x) as [F2x|NF2x].
 { (* generic_format beta fexp2 x *)
-  now rewrite (round_generic _ fexp2); [|apply valid_rnd_N|]. }
+  now rewrite (round_generic _ fexp2). }
 (* ~ generic_format beta fexp2 x *)
 assert (Nnrx1 : 0 <= rx1).
-{ rewrite <- (round_0 beta fexp1 Zfloor).
-  now apply round_le; [exact Vfexp1|apply valid_rnd_DN|apply Rlt_le]. }
+{ rewrite <- (round_0 beta fexp1 [>> Zrnd Zfloor]).
+  now apply round_le; [exact Vfexp1|apply Rlt_le]. }
 assert (Hrx1 : rx1 = Z2R (Zfloor (rx1 * bpow (- ex1))) * bpow ex1).
 { unfold rx1 at 2; unfold round, F2R, scaled_mantissa, cexp; simpl.
   unfold ex1; bpow_simplify.
@@ -481,7 +481,7 @@ assert (Hl2 : mag rx2c = mag x :> Z).
     + unfold ex1; rewrite <- Hl1.
       fold (cexp beta fexp1 rx1); rewrite <- ulp_neq_0; try now apply Rgt_not_eq.
       apply id_p_ulp_le_bpow; [exact Prx1| |].
-      * now apply generic_format_round; [|apply valid_rnd_DN].
+      * now apply generic_format_round.
       * destruct (mag rx1) as (erx1, Herx1); simpl.
         rewrite <- (Rabs_right rx1) at 1; [|now apply Rle_ge, Rlt_le].
         now apply Herx1, Rgt_not_eq. }
@@ -524,7 +524,7 @@ intros fexp1 fexp2 Vfexp1 Vfexp2 choice1 choice2 x Px Hf2f1 Hf1 Hx.
 destruct (generic_format_EM beta fexp2 x) as [F2x|NF2x].
 { (* generic_format beta fexp2 x *)
   unfold double_round_eq.
-  now rewrite (round_generic _ fexp2); [|apply valid_rnd_N|]. }
+  now rewrite (round_generic _ fexp2). }
 (* ~ generic_format beta fexp2 x *)
 assert (NF1x : ~ generic_format beta fexp1 x).
 { now intro H; apply NF2x, (generic_inclusion_mag _ fexp1). }
@@ -582,12 +582,12 @@ destruct (Zle_or_lt (fexp1 ex) (fexp2 ex)) as [H2|H2].
 - (* fexp1 ex = fexp2 ex *)
   replace (fexp1 ex) with (fexp2 ex) in H1; [|now apply Zle_antisym].
   rewrite (round_N_really_small_pos _ fexp2 _ x ex Hex H1).
-  now rewrite round_0; [|apply valid_rnd_N].
+  now rewrite round_0.
 - (* fexp2 (mag x) < fexp1 (mag x) *)
   set (r2 := round beta fexp2 (Znearest choice2) x).
   destruct (Req_dec r2 0) as [Zr2|Nzr2].
   { (* r2 = 0 *)
-    now rewrite Zr2, round_0; [|apply valid_rnd_N]. }
+    now rewrite Zr2, round_0. }
   (* r2 <> 0 *)
   assert (B1 : Rabs (r2 - x) <= / 2 * ulp beta fexp2 x);
     [now apply error_le_half_ulp|].
@@ -780,13 +780,13 @@ intros fexp1 fexp2 Vfexp1 Vfexp2 choice1 choice2 Hfexp x y Nnx Nny Fx Fy.
 destruct (Req_dec x 0) as [Zx|Nzx].
 - (* x = 0 *)
   unfold double_round_eq.
-  now rewrite Zx, Rmult_0_l, round_0; [|apply valid_rnd_N].
+  now rewrite Zx, Rmult_0_l, round_0.
 - (* 0 < x *)
   assert (Px : 0 < x); [lra|].
   destruct (Req_dec y 0) as [Zy|Nzy].
   + (* y = 0 *)
     unfold double_round_eq.
-    now rewrite Zy, Rmult_0_r, round_0; [|apply valid_rnd_N].
+    now rewrite Zy, Rmult_0_r, round_0.
   + (* 0 < y *)
     assert (Py : 0 < y); [lra|].
     now apply double_round_mult_beta_odd_aux1.
@@ -981,7 +981,7 @@ intros fexp1 fexp2 Vfexp1 Vfexp2 choice1 choice2 Hfexp x y Nnx Nny Fx Fy.
 destruct (Req_dec x 0) as [Zx|Nzx]; destruct (Req_dec y 0) as [Zy|Nzy].
 - (* x = 0, y = 0 *)
   unfold double_round_eq.
-  now rewrite Zx, Zy, Rplus_0_l, round_0; [|apply valid_rnd_N].
+  now rewrite Zx, Zy, Rplus_0_l, round_0.
 - (* x = 0, 0 < y *)
   assert (Py : 0 < y); [lra|].
   rewrite Zx, Rplus_0_l.
@@ -1072,7 +1072,7 @@ destruct (Req_dec x 0) as [Zx|Nzx]; destruct (Req_dec y 0) as [Zy|Nzy].
 - (* x = 0, y = 0 *)
   unfold double_round_eq.
   unfold Rminus.
-  now rewrite Zx, Zy, Rplus_0_l, Ropp_0, round_0; [|apply valid_rnd_N].
+  now rewrite Zx, Zy, Rplus_0_l, Ropp_0, round_0.
 - (* x = 0, 0 < y *)
   assert (Py : 0 < y); [lra|].
   unfold Rminus; rewrite Zx, Rplus_0_l.
@@ -1102,7 +1102,7 @@ destruct (Req_dec x 0) as [Zx|Nzx]; destruct (Req_dec y 0) as [Zy|Nzy].
     unfold double_round_eq; do 3 rewrite round_N_opp; apply f_equal.
     now apply double_round_minus_beta_odd_aux1.
   + unfold double_round_eq.
-    now rewrite (Rminus_diag_eq _ _ Hxy), round_0; [|apply valid_rnd_N].
+    now rewrite (Rminus_diag_eq _ _ Hxy), round_0.
   + now apply double_round_minus_beta_odd_aux1.
 Qed.
 
@@ -1330,9 +1330,8 @@ unfold generic_format, round, F2R, scaled_mantissa, cexp; simpl.
 set (m := Ztrunc (x * bpow (- fexp (mag x)))).
 intro Fx.
 assert (Nnr : 0 <= r).
-{ unfold r; rewrite <- (round_0 beta fexp Zfloor); apply round_le.
+{ unfold r; rewrite <- (round_0 beta fexp [>> Zrnd Zfloor]); apply round_le.
   - exact Vfexp.
-  - apply valid_rnd_DN.
   - apply sqrt_ge_0. }
 set (exsx := fexp (mag (sqrt x))).
 set (exx := (fexp (mag x))).
@@ -1519,7 +1518,7 @@ destruct (Rle_or_lt x 0) as [Npx|Px].
 { (* x <= 0 *)
   unfold double_round_eq.
   rewrite (sqrt_neg _ Npx).
-  now rewrite round_0; [|apply valid_rnd_N]. }
+  now rewrite round_0. }
 assert (Psx := sqrt_lt_R0 _ Px).
 specialize (Hexp (mag (sqrt x))).
 apply (neq_midpoint_beta_odd _ _ _ _ _ _ _ Psx Hexp).
@@ -1869,10 +1868,9 @@ destruct (Req_dec rd 0) as [Zrd|Nzrd].
 - (* rd <> 0 *)
   assert (Prd : 0 < rd).
   { assert (H : 0 <= rd); [|lra].
-    rewrite <- (round_0 beta fexp1 Zfloor); unfold rd.
+    rewrite <- (round_0 beta fexp1 [>> Zrnd Zfloor]); unfold rd.
     apply round_le.
     - exact Vfexp1.
-    - apply valid_rnd_DN.
     - now apply Rlt_le. }
   assert (Hlr : mag x = mag rd :> Z).
   { apply eq_sym.
@@ -1883,8 +1881,7 @@ destruct (Req_dec rd 0) as [Zrd|Nzrd].
     as (x2,(Hx2_0,(Hx2_1,(Hx2_2,Hx2_3)))); [omega| |].
   { rewrite Hlr.
     rewrite <- Ztrunc_floor.
-    - apply generic_format_round; [exact Vfexp1|].
-      apply valid_rnd_DN. 
+    - now apply generic_format_round.
     - now apply Rmult_le_pos; [apply Rlt_le|apply bpow_ge_0]. }
   change (bpow (fexp1 _)) with u in Hx2_3.
   rewrite <- Xmid' in Hx2_3.
@@ -1940,7 +1937,7 @@ destruct (Req_dec rd 0) as [Zrd|Nzrd].
     rewrite Hlr; rewrite Xmid'.
     rewrite Rplus_assoc.
     apply (mag_plus_eps beta fexp1 rd Prd); [|split].
-    - apply generic_format_round; [exact Vfexp1|apply valid_rnd_DN].
+    - now apply generic_format_round.
     - apply Rplus_le_le_0_compat; (apply Rmult_le_pos; [lra|apply bpow_ge_0]).
     - rewrite <- Rmult_plus_distr_l.
       apply (Rmult_lt_reg_l 2); [lra|].
@@ -2018,7 +2015,7 @@ destruct (Req_dec rd 0) as [Zrd|Nzrd].
     apply Rmult_lt_0_compat; [lra|apply bpow_gt_0].
   + rewrite Z2R_plus; apply Rplus_le_compat_l; simpl.
     unfold u, ulp, cexp; fold f1; bpow_simplify; lra.
-Qed.      
+Qed.
 
 Lemma double_round_eq_mid_beta_odd_rna_aux2 :
   forall (fexp1 fexp2 : Z -> Z),
@@ -2037,8 +2034,7 @@ assert (H : round beta fexp2 ZnearestA x = round beta fexp1 ZnearestA x).
   now rewrite Hf2. }
 rewrite round_generic.
 - exact H.
-- apply valid_rnd_N.
-- now rewrite H; apply generic_format_round; [|apply valid_rnd_N].
+- now rewrite H; apply generic_format_round.
 Qed.
 
 (* double_round_eq_mid_beta_odd_rna_aux{1,2} together *)
@@ -2087,12 +2083,12 @@ destruct (Zle_or_lt (fexp1 ex) (fexp2 ex)) as [H2|H2].
 - (* fexp1 ex = fexp2 ex *)
   replace (fexp1 ex) with (fexp2 ex) in H1; [|now apply Zle_antisym].
   rewrite (round_N_really_small_pos _ fexp2 _ x ex Hex H1).
-  now rewrite round_0; [|apply valid_rnd_N].
+  now rewrite round_0.
 - (* fexp2 (mag x) < fexp1 (mag x) *)
   set (r2 := round beta fexp2 ZnearestA x).
   destruct (Req_dec r2 0) as [Zr2|Nzr2].
   { (* r2 = 0 *)
-    now rewrite Zr2, round_0; [|apply valid_rnd_N]. }
+    now rewrite Zr2, round_0. }
   (* r2 <> 0 *)
   assert (B1 : Rabs (r2 - x) <= / 2 * ulp beta fexp2 x);
     [now apply error_le_half_ulp|].
@@ -2228,7 +2224,7 @@ destruct (Rtotal_order x 0) as [Nx|[Zx|Px]].
 - (* x = 0 *)
   rewrite Zx.
   unfold Rdiv; rewrite Rmult_0_l.
-  now rewrite round_0; [|apply valid_rnd_N].
+  now rewrite round_0.
 - (* x > 0 *)
   destruct (Rtotal_order y 0) as [Ny|[Zy|Py]].
   + (* y < 0 *)

@@ -20,7 +20,8 @@ COPYING file for more details.
 (** * Rounding to nearest, ties to even: existence, unicity... *)
 Require Import Raux Definitions Round_pred Generic_fmt Float_prop Ulp.
 
-Notation ZnearestE := (Znearest (fun x => negb (Zeven x))).
+Definition choiceNE x := negb (Zeven x).
+Notation ZnearestE := (Znearest choiceNE).
 
 Section Fcore_rnd_NE.
 
@@ -358,6 +359,7 @@ unfold xr, round, Znearest.
 fold mx.
 rewrite Hm.
 rewrite Rcompare_Eq. 2: apply refl_equal.
+unfold choiceNE.
 case_eq (Zeven (Zfloor mx)) ; intros Hmx.
 (* . even floor *)
 change (Zeven (Ztrunc (scaled_mantissa beta fexp (round beta fexp Zfloor x))) = true).
@@ -367,7 +369,7 @@ unfold scaled_mantissa.
 rewrite Rmult_0_l.
 change 0%R with (Z2R 0).
 now rewrite (Ztrunc_Z2R 0).
-rewrite <- (round_0 beta fexp Zfloor).
+rewrite <- (round_0 beta fexp [>> Zrnd Zfloor]).
 apply round_le...
 now apply Rlt_le.
 rewrite scaled_mantissa_DN...
@@ -379,7 +381,8 @@ specialize (Hex (Rgt_not_eq _ _ Hx)).
 rewrite (Rabs_pos_eq _ (Rlt_le _ _ Hx)) in Hex.
 destruct (Z_lt_le_dec (fexp ex) ex) as [He|He].
 (* .. large pos *)
-assert (Hu := round_bounded_large_pos _ _ Zceil _ _ He Hex).
+assert (Hu := round_bounded_large_pos _ _ [>> Zrnd Zceil] _ _ He Hex).
+simpl Zrnd in Hu.
 assert (Hfc: Zceil mx = (Zfloor mx + 1)%Z).
 apply Zceil_floor_neq.
 intros H.
@@ -481,7 +484,7 @@ Theorem round_NE_opp :
   round beta fexp ZnearestE (-x) = (- round beta fexp ZnearestE x)%R.
 Proof.
 intros x.
-unfold round. simpl.
+unfold round.
 rewrite scaled_mantissa_opp, cexp_opp.
 rewrite Znearest_opp.
 rewrite <- F2R_Zopp.
@@ -490,6 +493,7 @@ set (m := scaled_mantissa beta fexp x).
 unfold Znearest.
 case Rcompare ; trivial.
 apply (f_equal (fun (b : bool) => if b then Zceil m else Zfloor m)).
+unfold choiceNE.
 rewrite Bool.negb_involutive.
 rewrite Zeven_opp.
 rewrite Zeven_plus.
@@ -503,14 +507,15 @@ Proof with auto with typeclass_instances.
 intros x.
 apply sym_eq.
 unfold Rabs at 2.
+assert (H0: round beta fexp ZnearestE 0 = 0%R) by apply round_0.
 destruct (Rcase_abs x) as [Hx|Hx].
 rewrite round_NE_opp.
 apply Rabs_left1.
-rewrite <- (round_0 beta fexp ZnearestE).
+rewrite <- H0.
 apply round_le...
 now apply Rlt_le.
 apply Rabs_pos_eq.
-rewrite <- (round_0 beta fexp ZnearestE).
+rewrite <- H0.
 apply round_le...
 now apply Rge_le.
 Qed.
@@ -518,7 +523,7 @@ Qed.
 Theorem round_NE_pt :
   forall x,
   Rnd_NE_pt x (round beta fexp ZnearestE x).
-Proof with auto with typeclass_instances.
+Proof.
 intros x.
 destruct (total_order_T x 0) as [[Hx|Hx]|Hx].
 apply Rnd_NG_pt_sym.
@@ -535,7 +540,7 @@ now rewrite Zeven_opp.
 rewrite <- round_NE_opp.
 apply round_NE_pt_pos.
 now apply Ropp_0_gt_lt_contravar.
-rewrite Hx, round_0...
+rewrite Hx, round_0.
 apply Rnd_NG_pt_refl.
 apply generic_format_0.
 now apply round_NE_pt_pos.
