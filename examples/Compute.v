@@ -4,8 +4,7 @@ Section Compute.
 
 Variable beta : radix.
 
-Variable fexp : Z -> Z.
-Context { valid_exp : Valid_exp fexp }.
+Variable fexp : Valid_exp.
 
 Variable prec : Z.
 Hypothesis Hprec : (0 < prec)%Z.

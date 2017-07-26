@@ -27,8 +27,7 @@ Notation bpow e := (bpow beta e).
 
 Section Fprop_relative_generic.
 
-Variable fexp : Z -> Z.
-Context { prop_exp : Valid_exp fexp }.
+Variable fexp : Valid_exp.
 
 Section relative_error_conversion.
 
@@ -98,13 +97,13 @@ Theorem relative_error :
   forall x,
   (bpow emin <= Rabs x)%R ->
   (Rabs (round beta fexp rnd x - x) < bpow (-p + 1) * Rabs x)%R.
-Proof with auto with typeclass_instances.
+Proof.
 intros x Hx.
 assert (Hx': (x <> 0)%R).
 intros T; contradict Hx; rewrite T, Rabs_R0.
 apply Rlt_not_le, bpow_gt_0.
 apply Rlt_le_trans with (ulp beta fexp x)%R.
-now apply error_lt_ulp...
+now apply error_lt_ulp.
 rewrite ulp_neq_0; trivial.
 unfold cexp.
 destruct (mag beta x) as (ex, He).
@@ -169,7 +168,7 @@ Theorem relative_error_round :
   forall x,
   (bpow emin <= Rabs x)%R ->
   (Rabs (round beta fexp rnd x - x) < bpow (-p + 1) * Rabs (round beta fexp rnd x))%R.
-Proof with auto with typeclass_instances.
+Proof.
 intros Hp x Hx.
 assert (Hx': (x <> 0)%R).
 intros T; contradict Hx; rewrite T, Rabs_R0.
@@ -193,7 +192,7 @@ omega.
 apply Rmult_le_compat_l.
 apply bpow_ge_0.
 generalize He.
-apply round_abs_abs...
+apply round_abs_abs.
 clear rnd x Hx Hx' He.
 intros rnd x _ Hx.
 rewrite <- (round_generic beta fexp rnd (bpow (ex - 1))).
@@ -319,7 +318,7 @@ Theorem relative_error_N_round :
   forall x,
   (bpow emin <= Rabs x)%R ->
   (Rabs (round beta fexp (Znearest choice) x - x) <= /2 * bpow (-p + 1) * Rabs (round beta fexp (Znearest choice) x))%R.
-Proof with auto with typeclass_instances.
+Proof.
 intros Hp x Hx.
 apply Rle_trans with (/2 * ulp beta fexp x)%R.
 now apply error_le_half_ulp.
@@ -350,7 +349,7 @@ omega.
 apply Rmult_le_compat_l.
 apply bpow_ge_0.
 generalize He.
-apply round_abs_abs...
+apply round_abs_abs.
 clear rnd x Hx Hx' He.
 intros rnd x _ Hx.
 rewrite <- (round_generic beta fexp rnd (bpow (ex - 1))).
@@ -388,8 +387,8 @@ End Fprop_relative_generic.
 
 Section Fprop_relative_FLT.
 
-Variable emin prec : Z.
-Variable Hp : Zlt 0 prec.
+Variable emin : Z.
+Variable prec : Prec_gt_0.
 
 Lemma relative_error_FLT_aux :
   forall k, (emin + prec - 1 < k)%Z -> (prec <= k - FLT_exp emin prec k)%Z.
@@ -406,9 +405,9 @@ Theorem relative_error_FLT :
   forall x,
   (bpow (emin + prec - 1) <= Rabs x)%R ->
   (Rabs (round beta (FLT_exp emin prec) rnd x - x) < bpow (-prec + 1) * Rabs x)%R.
-Proof with auto with typeclass_instances.
+Proof.
 intros x Hx.
-apply relative_error with (emin + prec - 1)%Z...
+apply relative_error with (2 := Hx).
 apply relative_error_FLT_aux.
 Qed.
 
@@ -416,7 +415,7 @@ Theorem relative_error_FLT_F2R_emin :
   forall m, let x := F2R (Float beta m emin) in
   (x <> 0)%R ->
   (Rabs (round beta (FLT_exp emin prec) rnd x - x) < bpow (-prec + 1) * Rabs x)%R.
-Proof with auto with typeclass_instances.
+Proof.
 intros m x Zx.
 destruct (Rlt_or_le (Rabs x) (bpow (emin + prec - 1))) as [Hx|Hx].
 rewrite round_generic.
@@ -425,7 +424,7 @@ rewrite Rplus_opp_r, Rabs_R0.
 apply Rmult_lt_0_compat.
 apply bpow_gt_0.
 now apply Rabs_pos_lt.
-apply generic_format_FLT_FIX...
+apply generic_format_FLT_FIX.
 apply Rlt_le.
 apply Rlt_le_trans with (1 := Hx).
 apply bpow_le.
@@ -465,9 +464,9 @@ Theorem relative_error_N_FLT :
   forall x,
   (bpow (emin + prec - 1) <= Rabs x)%R ->
   (Rabs (round beta (FLT_exp emin prec) (Znearest choice) x - x) <= /2 * bpow (-prec + 1) * Rabs x)%R.
-Proof with auto with typeclass_instances.
+Proof.
 intros x Hx.
-apply relative_error_N with (emin + prec - 1)%Z...
+apply relative_error_N with (2 := Hx).
 apply relative_error_FLT_aux.
 Qed.
 
@@ -492,16 +491,17 @@ Theorem relative_error_N_FLT_round :
   forall x,
   (bpow (emin + prec - 1) <= Rabs x)%R ->
   (Rabs (round beta (FLT_exp emin prec) (Znearest choice) x - x) <= /2 * bpow (-prec + 1) * Rabs (round beta (FLT_exp emin prec) (Znearest choice) x))%R.
-Proof with auto with typeclass_instances.
+Proof.
 intros x Hx.
-apply relative_error_N_round with (emin + prec - 1)%Z...
+apply relative_error_N_round with (3 := Hx).
 apply relative_error_FLT_aux.
+apply prec.
 Qed.
 
 Theorem relative_error_N_FLT_F2R_emin :
   forall m, let x := F2R (Float beta m emin) in
   (Rabs (round beta (FLT_exp emin prec) (Znearest choice) x - x) <= /2 * bpow (-prec + 1) * Rabs x)%R.
-Proof with auto with typeclass_instances.
+Proof.
 intros m x.
 destruct (Rlt_or_le (Rabs x) (bpow (emin + prec - 1))) as [Hx|Hx].
 rewrite round_generic.
@@ -513,7 +513,7 @@ apply Rlt_le.
 apply (RinvN_pos 1).
 apply bpow_ge_0.
 apply Rabs_pos.
-apply generic_format_FLT_FIX...
+apply generic_format_FLT_FIX.
 apply Rlt_le.
 apply Rlt_le_trans with (1 := Hx).
 apply bpow_le.
@@ -541,7 +541,7 @@ Qed.
 Theorem relative_error_N_FLT_round_F2R_emin :
   forall m, let x := F2R (Float beta m emin) in
   (Rabs (round beta (FLT_exp emin prec) (Znearest choice) x - x) <= /2 * bpow (-prec + 1) * Rabs (round beta (FLT_exp emin prec) (Znearest choice) x))%R.
-Proof with auto with typeclass_instances.
+Proof.
 intros m x.
 destruct (Rlt_or_le (Rabs x) (bpow (emin + prec - 1))) as [Hx|Hx].
 rewrite round_generic.
@@ -553,15 +553,16 @@ apply Rlt_le.
 apply (RinvN_pos 1).
 apply bpow_ge_0.
 apply Rabs_pos.
-apply generic_format_FLT_FIX...
+apply generic_format_FLT_FIX.
 apply Rlt_le.
 apply Rlt_le_trans with (1 := Hx).
 apply bpow_le.
 apply Zle_pred.
 apply generic_format_FIX.
 now exists (Float beta m emin).
-apply relative_error_N_round with (emin := (emin + prec - 1)%Z)...
+apply relative_error_N_round with (3 := Hx).
 apply relative_error_FLT_aux.
+apply prec.
 Qed.
 
 Lemma error_N_FLT_aux :
@@ -576,9 +577,9 @@ Proof.
 intros x Hx2.
 case (Rle_or_lt (bpow (emin+prec)) x); intros Hx.
 (* *)
-destruct relative_error_N_ex with (FLT_exp emin prec) (emin+prec)%Z prec choice x
+destruct relative_error_N_ex with [>> fexp FLT_exp emin prec] (emin+prec)%Z prec choice x
   as (eps,(Heps1,Heps2)).
-now apply FLT_exp_valid.
+simpl.
 intros; unfold FLT_exp.
 rewrite Zmax_left; omega.
 rewrite Rabs_right;[assumption|apply Rle_ge; now left].
@@ -598,7 +599,6 @@ apply bpow_ge_0.
 split.
 apply Rle_trans with (/2*ulp beta (FLT_exp emin prec) x)%R.
 apply error_le_half_ulp.
-now apply FLT_exp_valid.
 apply Rmult_le_compat_l.
 apply Rlt_le, pos_half_prf.
 rewrite ulp_neq_0.
@@ -622,7 +622,7 @@ Qed.
 End Fprop_relative_FLT.
 
 Lemma error_N_FLT :
-  forall (emin prec : Z), (0 < prec)%Z ->
+  forall (emin : Z) (prec : Prec_gt_0),
   forall (choice : Z -> bool),
   forall (x : R),
   exists eps eta : R,
@@ -632,11 +632,11 @@ Lemma error_N_FLT :
   (round beta (FLT_exp emin prec) (Znearest choice) x
    = x * (1 + eps) + eta)%R.
 Proof.
-intros emin prec Pprec choice x.
+intros emin prec choice x.
 destruct (Rtotal_order x 0) as [Nx|[Zx|Px]].
 { assert (Pmx : (0 < - x)%R).
   { now rewrite <- Ropp_0; apply Ropp_lt_contravar. }
-  destruct (error_N_FLT_aux emin prec Pprec
+  destruct (error_N_FLT_aux emin prec
                             (fun t : Z => negb (choice (- (t + 1))%Z))
                             (- x)%R Pmx)
     as (d,(e,(Hd,(He,(Hde,Hr))))).
@@ -659,8 +659,7 @@ Qed.
 
 Section Fprop_relative_FLX.
 
-Variable prec : Z.
-Variable Hp : Zlt 0 prec.
+Variable prec : Prec_gt_0.
 
 Lemma relative_error_FLX_aux :
   forall k, (prec <= k - FLX_exp prec k)%Z.
@@ -676,14 +675,13 @@ Theorem relative_error_FLX :
   forall x,
   (x <> 0)%R ->
   (Rabs (round beta (FLX_exp prec) rnd x - x) < bpow (-prec + 1) * Rabs x)%R.
-Proof with auto with typeclass_instances.
+Proof.
 intros x Hx.
 destruct (mag beta x) as (ex, He).
 specialize (He Hx).
-apply relative_error with (ex - 1)%Z...
+apply relative_error with (2 := proj1 He).
 intros k _.
 apply relative_error_FLX_aux.
-apply He.
 Qed.
 
 (** 1+#&epsilon;# property in any rounding in FLX *)
@@ -702,14 +700,14 @@ Theorem relative_error_FLX_round :
   forall x,
   (x <> 0)%R ->
   (Rabs (round beta (FLX_exp prec) rnd x - x) < bpow (-prec + 1) * Rabs (round beta (FLX_exp prec) rnd x))%R.
-Proof with auto with typeclass_instances.
+Proof.
 intros x Hx.
 destruct (mag beta x) as (ex, He).
 specialize (He Hx).
-apply relative_error_round with (ex - 1)%Z...
+apply relative_error_round with (3 := proj1 He).
 intros k _.
 apply relative_error_FLX_aux.
-apply He.
+apply prec.
 Qed.
 
 Variable choice : Z -> bool.
@@ -717,7 +715,7 @@ Variable choice : Z -> bool.
 Theorem relative_error_N_FLX :
   forall x,
   (Rabs (round beta (FLX_exp prec) (Znearest choice) x - x) <= /2 * bpow (-prec + 1) * Rabs x)%R.
-Proof with auto with typeclass_instances.
+Proof.
 intros x.
 destruct (Req_dec x 0) as [Hx|Hx].
 (* . *)
@@ -729,7 +727,7 @@ apply Rle_refl.
 (* . *)
 destruct (mag beta x) as (ex, He).
 specialize (He Hx).
-apply relative_error_N with (ex - 1)%Z...
+apply relative_error_N with (ex - 1)%Z.
 intros k _.
 apply relative_error_FLX_aux.
 apply He.
@@ -767,10 +765,9 @@ apply Rle_refl.
 destruct (mag beta x) as (ex, He).
 specialize (He Hx).
 apply relative_error_N_round with (ex - 1)%Z.
-now apply FLX_exp_valid.
 intros k _.
 apply relative_error_FLX_aux.
-exact Hp.
+apply prec.
 apply He.
 Qed.
 

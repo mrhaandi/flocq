@@ -26,8 +26,7 @@ Section Fprop_Sterbenz.
 Variable beta : radix.
 Notation bpow e := (bpow beta e).
 
-Variable fexp : Z -> Z.
-Context { valid_exp : Valid_exp fexp }.
+Variable fexp : Valid_exp.
 Context { monotone_exp : Monotone_exp fexp }.
 Notation format := (generic_format beta fexp).
 

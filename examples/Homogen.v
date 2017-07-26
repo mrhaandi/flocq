@@ -4,16 +4,32 @@ From Flocq Require Import Core Operations Relative Plus_error.
 Section Theory.
 
 Variable emin : Z.
-Variable prec : Z.
-Context {Hprec : Prec_gt_0 prec}.
 
-Notation fexp := (FLT_exp emin prec).
+Section prec.
+
+Variable prec : Z.
 
 Definition Bmin := bpow radix2 (emin + prec - 1).
 
 Definition hombnd (m M u v : R) (b B : float radix2) :=
   (0 <= F2R b)%R /\ (1 <= F2R B)%R /\
   ((Bmin <= m)%R -> (Rabs (u - v) <= F2R b * M)%R /\ (Rabs v <= F2R B * M)%R).
+
+Definition mult_err b1 B1 b2 B2 :=
+  Fplus radix2 (Fplus radix2 (Fmult radix2 b1 B2) (Fmult radix2 B1 b2)) (Fmult radix2 b1 b2).
+
+Definition round_err b B :=
+  Fplus radix2 (Fmult radix2 (Fplus radix2 b B) (Float radix2 1 (- prec))) b.
+
+End prec.
+
+Section Prec_gt_0.
+
+Variable prec : Prec_gt_0.
+
+Notation fexp := (FLT_exp emin prec).
+Notation Bmin := (Bmin prec).
+Notation hombnd := (hombnd prec).
 
 Lemma hombnd_fact :
   forall m M1 M2 u v b B,
@@ -99,9 +115,6 @@ rewrite 2!Rabs_Ropp.
 now split.
 Qed.
 
-Definition mult_err b1 B1 b2 B2 :=
-  Fplus radix2 (Fplus radix2 (Fmult radix2 b1 B2) (Fmult radix2 B1 b2)) (Fmult radix2 b1 b2).
-
 Lemma hombnd_mult :
   forall m M1 u1 v1 b1 B1 M2 u2 v2 b2 B2,
   hombnd m M1 u1 v1 b1 B1 ->
@@ -146,13 +159,10 @@ rewrite H0, Rabs_mult.
 now apply Rmult_le_compat ; try apply Rabs_pos.
 Qed.
 
-Definition round_err b B :=
-  Fplus radix2 (Fmult radix2 (Fplus radix2 b B) (Float radix2 1 (- prec))) b.
-
 Lemma hombnd_rnd :
   forall m M u v b B,
   hombnd m M u v b B ->
-  hombnd (Rmin m M) M (round radix2 fexp ZnearestE u) v (round_err b B) B.
+  hombnd (Rmin m M) M (round radix2 fexp ZnearestE u) v (round_err prec b B) B.
 Proof with auto with typeclass_instances.
 intros m M u v b B [Ho1 [Ho2 Ho]].
 unfold hombnd, round_err.
@@ -210,6 +220,8 @@ rewrite F2R_bpow.
 ring.
 Qed.
 
+End Prec_gt_0.
+
 End Theory.
 
 Section Example.
@@ -220,6 +232,8 @@ Definition sub x y := round radix2 fxp ZnearestE (x - y).
 Definition mul x y := round radix2 fxp ZnearestE (x * y).
 
 Definition hombnd' := hombnd (-1074) 53.
+
+Canonical Structure prec53 := Build_Prec_gt_0 53 eq_refl.
 
 Lemma hombnd_sub_init :
   forall u v,
@@ -245,7 +259,6 @@ apply FLT_format_plus_small ; try easy.
 now apply generic_format_opp.
 replace (F2R (Float radix2 1 (-53))) with (bpow radix2 (-1) * bpow radix2 (-53 + 1))%R.
 apply relative_error_N_FLT.
-easy.
 apply Rlt_le.
 apply Rle_lt_trans with (2 := S).
 now apply bpow_le.

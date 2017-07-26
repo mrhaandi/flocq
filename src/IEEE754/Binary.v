@@ -44,13 +44,14 @@ Implicit Arguments exist [[A] [P]].
     [emax] is the exponent of the infinities.
     For instance, binary32 is defined by [prec = 24] and [emax = 128]. *)
 Variable prec emax : Z.
-Context (prec_gt_0_ : Prec_gt_0 prec).
+Hypothesis Hprec : (0 < prec)%Z.
 Hypothesis Hmax : (prec < emax)%Z.
 
+Canonical Structure prec_gt_0_ := Build_Prec_gt_0 prec Hprec.
+
 Let emin := (3 - emax - prec)%Z.
-Let fexp := FLT_exp emin prec.
-Instance fexp_correct : Valid_exp fexp := FLT_exp_valid emin prec.
-Instance fexp_monotone : Monotone_exp fexp := FLT_exp_monotone emin prec.
+Notation fexp := (FLT_exp emin prec).
+Instance fexp_monotone : Monotone_exp _ := FLT_exp_monotone emin prec_gt_0_.
 
 Definition canonical_mantissa m e :=
   Zeq_bool (fexp (Zpos (digits2_pos m) + e)) e.
@@ -196,9 +197,9 @@ Qed.
 Theorem FLT_format_B2R :
   forall x,
   FLT_format radix2 emin prec (B2R x).
-Proof with auto with typeclass_instances.
+Proof.
 intros x.
-apply FLT_format_generic...
+apply FLT_format_generic.
 apply generic_format_B2R.
 Qed.
 
@@ -655,7 +656,7 @@ apply Ex.
 apply Rgt_not_eq.
 now apply F2R_gt_0_compat.
 unfold emin.
-generalize (prec_gt_0 prec).
+generalize (prec_gt_0 prec_gt_0_).
 clear -Hmax ; omega.
 Qed.
 
@@ -817,6 +818,7 @@ exact (proj1 (inbetween_float_bounds _ _ _ _ _ Hx)).
 case_eq (shr (shr_record_of_loc m l) e (fexp (Zdigits radix2 m + e) - e)).
 intros mrs e'' H3 H4 H1.
 generalize (truncate_correct radix2 _ x m e l Hx0 Hx (or_introl _ He)).
+simpl Generic_fmt.fexp.
 rewrite H1.
 intros (H2,_).
 rewrite <- Hp, H3.
@@ -913,14 +915,15 @@ Theorem binary_round_aux_correct :
     is_finite_FF z = true /\ sign_FF z = Rlt_bool x 0
   else
     z = binary_overflow mode (Rlt_bool x 0).
-Proof with auto with typeclass_instances.
+Proof.
 intros m x mx ex lx Bx Ex z.
 unfold binary_round_aux in z.
 revert z.
 rewrite shr_truncate. 2: easy.
 refine (_ (round_trunc_sign_any_correct _ _ [>> Zrnd round_mode m] (choice_mode m) _ x (Zpos mx) ex lx Bx (or_introl _ Ex))).
-simpl Zrnd.
+simpl Zrnd. simpl Generic_fmt.fexp.
 refine (_ (truncate_correct_partial _ _ _ _ _ _ _ Bx Ex)).
+simpl Generic_fmt.fexp.
 destruct (truncate radix2 fexp (Zpos mx, ex, lx)) as ((m1, e1), l1).
 rewrite loc_of_shr_record_of_loc, shr_m_shr_record_of_loc.
 set (m1' := choice_mode m (Rlt_bool x 0) m1 l1).
@@ -970,8 +973,9 @@ rewrite <- mag_F2R_Zdigits, <- Hr, mag_abs.
 rewrite H1b.
 rewrite cexp_abs.
 fold (cexp radix2 fexp (round radix2 fexp (round_mode m) x)).
-apply cexp_round_ge...
-simpl Zrnd.
+apply cexp_round_ge.
+auto with typeclass_instances.
+simpl Zrnd. simpl Generic_fmt.fexp.
 rewrite H1c.
 case (Rlt_bool x 0).
 apply Rlt_not_eq.
@@ -983,6 +987,7 @@ refine (_ (truncate_correct_partial _ _ _ _ _ _ _ Br He)).
 refine (_ (truncate_correct_format radix2 fexp (Zpos m1') e1 _ _ He)).
 2: discriminate.
 rewrite shr_truncate. 2: easy.
+simpl Generic_fmt.fexp.
 destruct (truncate radix2 fexp (Zpos m1', e1, loc_Exact)) as ((m2, e2), l2).
 rewrite shr_m_shr_record_of_loc.
 intros (H3,H4) (H2,_).
@@ -1021,12 +1026,11 @@ apply Zeq_bool_true.
 rewrite Zpos_digits2_pos.
 replace (Zdigits radix2 (Zpos (match (Zpower 2 prec - 1)%Z with Zpos p => p | _ => xH end))) with prec.
 unfold fexp, FLT_exp, emin.
-generalize (prec_gt_0 prec).
-clear -Hmax ; zify ; omega.
+clear -Hmax Hprec ; zify ; omega.
 change 2%Z with (radix_val radix2).
 case_eq (Zpower radix2 prec - 1)%Z.
 simpl Zdigits.
-generalize (Zpower_gt_1 radix2 prec (prec_gt_0 prec)).
+generalize (Zpower_gt_1 radix2 prec Hprec).
 clear ; omega.
 intros p Hp.
 apply Zle_antisym.
@@ -1043,7 +1047,7 @@ apply Zdigits_le_Zpower.
 simpl Zabs. rewrite <- Hp.
 apply Zlt_pred.
 intros p Hp.
-generalize (Zpower_gt_1 radix2 _ (prec_gt_0 prec)).
+generalize (Zpower_gt_1 radix2 _ Hprec).
 clear -Hp ; zify ; omega.
 apply Rnot_lt_le.
 intros Hx.
@@ -1060,8 +1064,8 @@ apply Rlt_trans with R0.
 now apply F2R_lt_0_compat.
 now apply F2R_gt_0_compat.
 rewrite <- Hr.
-apply generic_format_abs...
-apply generic_format_round...
+apply generic_format_abs.
+apply generic_format_round.
 (* . not m1' < 0 *)
 elim Rgt_not_eq with (2 := Hr).
 apply Rlt_le_trans with R0.
@@ -1312,12 +1316,12 @@ Theorem binary_normalize_correct :
       end
   else
     B2FF (binary_normalize m mx ex szero) = binary_overflow m (Rlt_bool (F2R (Float radix2 mx ex)) 0).
-Proof with auto with typeclass_instances.
+Proof.
 intros m mx ez szero.
 destruct mx as [|mz|mz] ; simpl.
-rewrite F2R_0, round_0, Rabs_R0, Rlt_bool_true...
-split... split...
-rewrite Rcompare_Eq...
+rewrite F2R_0, round_0, Rabs_R0, Rlt_bool_true.
+repeat split.
+now rewrite Rcompare_Eq.
 apply bpow_gt_0.
 (* . mz > 0 *)
 generalize (binary_round_correct m false mz ez).
@@ -1329,7 +1333,8 @@ now rewrite B2R_FF2B.
 split.
 now rewrite is_finite_FF2B.
 rewrite Bsign_FF2B, Rz''.
-rewrite Rcompare_Gt...
+rewrite Rcompare_Gt.
+easy.
 apply F2R_gt_0_compat.
 simpl. zify; omega.
 intros Hz' (Vz, Rz).
@@ -1348,7 +1353,8 @@ now rewrite B2R_FF2B.
 split.
 now rewrite is_finite_FF2B.
 rewrite Bsign_FF2B, Rz''.
-rewrite Rcompare_Lt...
+rewrite Rcompare_Lt.
+easy.
 apply F2R_lt_0_compat.
 simpl. zify; omega.
 intros Hz' (Vz, Rz).
@@ -1395,31 +1401,31 @@ Theorem Bplus_correct :
       end
   else
     (B2FF (Bplus plus_nan m x y) = binary_overflow m (Bsign x) /\ Bsign x = Bsign y).
-Proof with auto with typeclass_instances.
+Proof.
 intros plus_nan m [sx|sx| |sx mx ex Hx] [sy|sy| |sy my ey Hy] Fx Fy ; try easy.
 (* *)
-rewrite Rplus_0_r, round_0, Rabs_R0, Rlt_bool_true...
+rewrite Rplus_0_r, round_0, Rabs_R0, Rlt_bool_true.
 simpl.
 rewrite Rcompare_Eq by auto.
 destruct sx, sy; try easy; now case m.
 apply bpow_gt_0.
 (* *)
-rewrite Rplus_0_l, round_generic, Rlt_bool_true...
-split... split...
+rewrite Rplus_0_l, round_generic, Rlt_bool_true.
+repeat split.
 simpl. unfold F2R.
 erewrite <- Rmult_0_l, Rcompare_mult_r.
 rewrite Rcompare_Z2R with (y:=0%Z).
-destruct sy...
+now destruct sy.
 apply bpow_gt_0.
 apply abs_B2R_lt_emax.
 apply generic_format_B2R.
 (* *)
-rewrite Rplus_0_r, round_generic, Rlt_bool_true...
-split... split...
+rewrite Rplus_0_r, round_generic, Rlt_bool_true.
+repeat split.
 simpl. unfold F2R.
 erewrite <- Rmult_0_l, Rcompare_mult_r.
 rewrite Rcompare_Z2R with (y:=0%Z).
-destruct sx...
+now destruct sx.
 apply bpow_gt_0.
 apply abs_B2R_lt_emax.
 apply generic_format_B2R.
@@ -1474,7 +1480,7 @@ elim Rle_not_lt with (1 := Bz).
 generalize (bounded_lt_emax _ _ Hx) (bounded_lt_emax _ _ Hy) (andb_prop _ _ Hx) (andb_prop _ _ Hy).
 intros Bx By (Hx',_) (Hy',_).
 generalize (canonical_canonical_mantissa sx _ _ Hx') (canonical_canonical_mantissa sy _ _ Hy').
-clear -Bx By Hs prec_gt_0_.
+clear -Bx By Hs Hprec.
 intros Cx Cy.
 destruct sx.
 (* ... *)
@@ -1486,13 +1492,13 @@ split.
 apply Rlt_le_trans with (F2R (Float radix2 (cond_Zopp true (Zpos mx)) ex)).
 rewrite F2R_Zopp.
 now apply Ropp_lt_contravar.
-apply round_ge_generic...
+apply round_ge_generic.
 now apply generic_format_canonical.
 pattern (F2R (Float radix2 (cond_Zopp true (Zpos mx)) ex)) at 1 ; rewrite <- Rplus_0_r.
 apply Rplus_le_compat_l.
 now apply F2R_ge_0_compat.
 apply Rle_lt_trans with (2 := By).
-apply round_le_generic...
+apply round_le_generic.
 now apply generic_format_canonical.
 rewrite <- (Rplus_0_l (F2R (Float radix2 (Zpos my) ey))).
 apply Rplus_le_compat_r.
@@ -1506,13 +1512,13 @@ split.
 apply Rlt_le_trans with (F2R (Float radix2 (cond_Zopp true (Zpos my)) ey)).
 rewrite F2R_Zopp.
 now apply Ropp_lt_contravar.
-apply round_ge_generic...
+apply round_ge_generic.
 now apply generic_format_canonical.
 pattern (F2R (Float radix2 (cond_Zopp true (Zpos my)) ey)) at 1 ; rewrite <- Rplus_0_l.
 apply Rplus_le_compat_r.
 now apply F2R_ge_0_compat.
 apply Rle_lt_trans with (2 := Bx).
-apply round_le_generic...
+apply round_le_generic.
 now apply generic_format_canonical.
 rewrite <- (Rplus_0_r (F2R (Float radix2 (Zpos mx) ex))).
 apply Rplus_le_compat_l.
@@ -1577,7 +1583,7 @@ Theorem Bminus_correct :
       end
   else
     (B2FF (Bminus minus_nan m x y) = binary_overflow m (Bsign x) /\ Bsign x = negb (Bsign y)).
-Proof with auto with typeclass_instances.
+Proof.
 intros minus_nan m x y Fx Fy.
 generalize (Bplus_correct minus_nan m x (Bopp (fun n => minus_nan n (B754_zero false)) y) Fx).
 rewrite is_finite_Bopp, B2R_Bopp.
@@ -1786,7 +1792,7 @@ Lemma Bsqrt_correct_aux :
   valid_binary z = true /\
   FF2R radix2 z = round radix2 fexp (round_mode m) (sqrt x) /\
   is_finite_FF z = true /\ sign_FF z = false.
-Proof with auto with typeclass_instances.
+Proof.
 intros m mx ex Hx.
 replace (Fsqrt_core_binary (Zpos mx) ex) with (Fsqrt_core radix2 prec (Zpos mx) ex).
 simpl.
@@ -1804,8 +1810,8 @@ rewrite Rlt_bool_true.
 easy.
 (* .. *)
 rewrite Rabs_pos_eq.
-refine (_ (relative_error_FLT_ex radix2 emin prec (prec_gt_0 prec) [>> Zrnd round_mode m] (sqrt (F2R (Float radix2 (Zpos mx) ex))) _)).
-simpl Zrnd.
+refine (_ (relative_error_FLT_ex radix2 emin prec_gt_0_ [>> Zrnd round_mode m] (sqrt (F2R (Float radix2 (Zpos mx) ex))) _)).
+simpl Zrnd. simpl FLX.prec.
 fold fexp.
 intros (eps, (Heps, Hr)).
 rewrite Hr.
@@ -1813,8 +1819,7 @@ assert (Heps': (Rabs eps < 1)%R).
 apply Rlt_le_trans with (1 := Heps).
 fold (bpow radix2 0).
 apply bpow_le.
-generalize (prec_gt_0 prec).
-clear ; omega.
+clear -Hprec ; omega.
 apply Rsqr_incrst_0.
 3: apply bpow_ge_0.
 rewrite Rsqr_mult.
@@ -1837,8 +1842,7 @@ apply (Rabs_lt_inv _ _ Heps').
 now apply (Z2R_le 0 2).
 change 4%R with (bpow radix2 2).
 apply bpow_le.
-generalize (prec_gt_0 prec).
-clear -Hmax ; omega.
+clear -Hmax Hprec ; omega.
 apply Rmult_le_pos.
 apply sqrt_ge_0.
 rewrite <- (Rplus_opp_r 1).
@@ -1856,8 +1860,8 @@ apply Rle_trans with (bpow radix2 emin).
 unfold Rsqr.
 rewrite <- bpow_plus.
 apply bpow_le.
-unfold emin.
-clear -Hmax ; omega.
+unfold emin. simpl FLX.prec.
+clear -Hmax Hprec ; omega.
 apply generic_format_ge_bpow with fexp.
 intros.
 apply Zle_max_r.
@@ -1866,7 +1870,7 @@ apply generic_format_canonical.
 apply (canonical_canonical_mantissa false).
 apply (andb_prop _ _ Hx).
 (* .. *)
-apply round_ge_generic...
+apply round_ge_generic.
 apply generic_format_0.
 apply sqrt_ge_0.
 rewrite Rabs_pos_eq.
@@ -1909,7 +1913,7 @@ Theorem Bsqrt_correct :
   (is_nan (Bsqrt sqrt_nan m x) = false -> Bsign (Bsqrt sqrt_nan m x) = Bsign x).
 Proof.
 intros sqrt_nan m [sx|[|]|sx plx Hplx|sx mx ex Hx] ;
-  try ( simpl ; rewrite sqrt_0, round_0, ?B2R_build_nan, ?is_finite_build_nan, ?is_nan_build_nan ; intuition auto with typeclass_instances ; easy).
+  try ( simpl ; rewrite sqrt_0, round_0, ?B2R_build_nan, ?is_finite_build_nan, ?is_nan_build_nan ; intuition ; easy).
 simpl.
 case Bsqrt_correct_aux.
 intros H1 (H2, (H3, H4)).
@@ -1921,7 +1925,6 @@ unfold sqrt.
 case Rcase_abs.
 intros _.
 apply round_0.
-auto with typeclass_instances.
 intros H.
 elim Rge_not_lt with (1 := H).
 now apply F2R_lt_0_compat.

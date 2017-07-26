@@ -21,43 +21,88 @@ COPYING file for more details.
 Require Import Raux Definitions Round_pred Generic_fmt Float_prop.
 Require Import FIX Ulp Round_NE.
 
+Record Prec_gt_0 := {
+  prec :> Z ;
+  prec_gt_0 : (0 < prec)%Z
+}.
+
 Section RND_FLX.
 
 Variable beta : radix.
 
 Notation bpow e := (bpow beta e).
 
+Section prec.
+
 Variable prec : Z.
-
-Class Prec_gt_0 :=
-  prec_gt_0 : (0 < prec)%Z.
-
-Context { prec_gt_0_ : Prec_gt_0 }.
 
 Inductive FLX_format (x : R) : Prop :=
   FLX_spec (f : float beta) :
     x = F2R f -> (Zabs (Fnum f) < Zpower beta prec)%Z -> FLX_format x.
 
+(** unbounded floating-point format with normal mantissas *)
+Inductive FLXN_format (x : R) : Prop :=
+  FLXN_spec (f : float beta) :
+    x = F2R f ->
+    (x <> 0%R -> Zpower beta (prec - 1) <= Zabs (Fnum f) < Zpower beta prec)%Z ->
+    FLXN_format x.
+
 Definition FLX_exp (e : Z) := (e - prec)%Z.
 
 (** Properties of the FLX format *)
 
-Global Instance FLX_exp_valid : Valid_exp FLX_exp.
+Lemma FLX_exp_valid1 :
+  forall k : Z, (FLX_exp k < k)%Z ->
+  (FLX_exp (k + 1) <= k)%Z.
 Proof.
 intros k.
 unfold FLX_exp.
-generalize prec_gt_0.
-repeat split ; intros ; omega.
+omega.
 Qed.
 
+End prec.
+
+Section Prec_gt_0.
+
+Variable prec : Prec_gt_0.
+
+Local Notation FLX_exp' := FLX_exp (only parsing).
+Local Notation FLX_format' := FLX_format (only parsing).
+Notation FLX_exp := (FLX_exp prec).
+Notation FLX_format := (FLX_format prec).
+
+Lemma FLX_exp_valid2 :
+  forall k : Z, (k <= FLX_exp k)%Z ->
+  (FLX_exp (FLX_exp k + 1) <= FLX_exp k)%Z.
+Proof.
+intros k.
+unfold FLX_exp.
+generalize (prec_gt_0 prec).
+omega.
+Qed.
+
+Lemma FLX_exp_valid3 :
+  forall k l : Z,
+  (k <= FLX_exp k)%Z -> (l <= FLX_exp k)%Z ->
+  FLX_exp l = FLX_exp k.
+Proof.
+intros k l.
+unfold FLX_exp.
+generalize (prec_gt_0 prec).
+omega.
+Qed.
+
+Canonical Structure FLX_exp_valid :=
+  Build_Valid_exp FLX_exp (FLX_exp_valid1 prec) FLX_exp_valid2 FLX_exp_valid3.
+
 Theorem FIX_format_FLX :
-  forall x e,
+  forall (prec : Z) x e,
   (bpow (e - 1) <= Rabs x <= bpow e)%R ->
-  FLX_format x ->
+  FLX_format' prec x ->
   FIX_format beta (e - prec) x.
 Proof.
-clear prec_gt_0_.
-intros x e Hx [[xm xe] H1 H2].
+clear prec.
+intros prec x e Hx [[xm xe] H1 H2].
 rewrite H1, (F2R_prec_normalize beta xm xe e prec).
 now eexists.
 exact H2.
@@ -79,7 +124,7 @@ apply Rmult_lt_reg_r with (bpow (cexp beta FLX_exp (Rabs x))).
 apply bpow_gt_0.
 rewrite scaled_mantissa_mult_bpow.
 rewrite Z2R_Zpower, <- bpow_plus.
-2: now apply Zlt_le_weak.
+2: apply Zlt_le_weak, prec_gt_0.
 unfold cexp, FLX_exp.
 ring_simplify (prec + (mag beta (Rabs x) - prec))%Z.
 rewrite mag_abs.
@@ -91,10 +136,10 @@ now apply Ex.
 Qed.
 
 Theorem generic_format_FLX :
-  forall x, FLX_format x -> generic_format beta FLX_exp x.
+  forall prec x, FLX_format' prec x -> generic_format beta (FLX_exp' prec) x.
 Proof.
-clear prec_gt_0_.
-intros x [[mx ex] H1 H2].
+clear prec.
+intros prec x [[mx ex] H1 H2].
 simpl in H2.
 rewrite H1.
 apply generic_format_F2R.
@@ -109,11 +154,12 @@ Qed.
 Theorem FLX_format_satisfies_any :
   satisfies_any FLX_format.
 Proof.
-refine (satisfies_any_eq _ _ _ (generic_format_satisfies_any beta FLX_exp)).
+eapply satisfies_any_eq.
 intros x.
 split.
 apply FLX_format_generic.
 apply generic_format_FLX.
+apply generic_format_satisfies_any.
 Qed.
 
 Theorem FLX_format_FIX :
@@ -121,26 +167,20 @@ Theorem FLX_format_FIX :
   (bpow (e - 1) <= Rabs x <= bpow e)%R ->
   FIX_format beta (e - prec) x ->
   FLX_format x.
-Proof with auto with typeclass_instances.
+Proof.
 intros x e Hx Fx.
 apply FLX_format_generic.
 apply generic_format_FIX in Fx.
 revert Fx.
-apply generic_inclusion with (e := e)...
+apply generic_inclusion with (2 := Hx).
 apply Zle_refl.
 Qed.
 
-(** unbounded floating-point format with normal mantissas *)
-Inductive FLXN_format (x : R) : Prop :=
-  FLXN_spec (f : float beta) :
-    x = F2R f ->
-    (x <> R0 -> Zpower beta (prec - 1) <= Zabs (Fnum f) < Zpower beta prec)%Z ->
-    FLXN_format x.
-
 Theorem generic_format_FLXN :
-  forall x, FLXN_format x -> generic_format beta FLX_exp x.
+  forall prec x, FLXN_format prec x -> generic_format beta (FLX_exp' prec) x.
 Proof.
-intros x [[xm ex] H1 H2].
+clear prec.
+intros prec x [[xm ex] H1 H2].
 destruct (Req_dec x 0) as [Zx|Zx].
 rewrite Zx.
 apply generic_format_0.
@@ -152,7 +192,7 @@ apply H2.
 Qed.
 
 Theorem FLXN_format_generic :
-  forall x, generic_format beta FLX_exp x -> FLXN_format x.
+  forall x, generic_format beta FLX_exp x -> FLXN_format prec x.
 Proof.
 intros x Hx.
 rewrite Hx.
@@ -165,7 +205,7 @@ split.
 (* *)
 apply le_Z2R.
 rewrite Z2R_Zpower.
-2: now apply Zlt_0_le_0_pred.
+2: apply Zlt_0_le_0_pred, prec_gt_0.
 rewrite Z2R_abs, <- scaled_mantissa_generic with (1 := Hx).
 apply Rmult_le_reg_r with (bpow (cexp beta FLX_exp x)).
 apply bpow_gt_0.
@@ -181,7 +221,7 @@ now apply Ex.
 (* *)
 apply lt_Z2R.
 rewrite Z2R_Zpower.
-2: now apply Zlt_le_weak.
+2: apply Zlt_le_weak, prec_gt_0.
 rewrite Z2R_abs, <- scaled_mantissa_generic with (1 := Hx).
 apply Rmult_lt_reg_r with (bpow (cexp beta FLX_exp x)).
 apply bpow_gt_0.
@@ -197,21 +237,23 @@ now apply Ex.
 Qed.
 
 Theorem FLXN_format_satisfies_any :
-  satisfies_any FLXN_format.
+  satisfies_any (FLXN_format prec).
 Proof.
-refine (satisfies_any_eq _ _ _ (generic_format_satisfies_any beta FLX_exp)).
-split ; intros H.
-now apply FLXN_format_generic.
-now apply generic_format_FLXN.
+eapply satisfies_any_eq.
+split.
+apply FLXN_format_generic.
+apply generic_format_FLXN.
+apply generic_format_satisfies_any.
 Qed.
 
-Theorem ulp_FLX_0: (ulp beta FLX_exp 0 = 0)%R.
+Theorem ulp_FLX_0: ulp beta FLX_exp 0 = 0%R.
 Proof.
 unfold ulp; rewrite Req_bool_true; trivial.
 case (negligible_exp_spec FLX_exp).
 intros _; reflexivity.
 intros n H2; contradict H2.
-unfold FLX_exp; unfold Prec_gt_0 in prec_gt_0_; omega.
+unfold FLX_exp.
+generalize (prec_gt_0 prec); omega.
 Qed.
 
 Theorem ulp_FLX_le :
@@ -244,7 +286,7 @@ left; now apply bpow_mag_gt.
 Qed.
 
 (** FLX is a nice format: it has a monotone exponent... *)
-Global Instance FLX_exp_monotone : Monotone_exp FLX_exp.
+Global Instance FLX_exp_monotone : Monotone_exp FLX_exp_valid.
 Proof.
 intros ex ey Hxy.
 now apply Zplus_le_compat_r.
@@ -253,13 +295,16 @@ Qed.
 (** and it allows a rounding to nearest, ties to even. *)
 Hypothesis NE_prop : Zeven beta = false \/ (1 < prec)%Z.
 
-Global Instance exists_NE_FLX : Exists_NE beta FLX_exp.
+Global Instance exists_NE_FLX : Exists_NE beta FLX_exp_valid.
 Proof.
 destruct NE_prop as [H|H].
 now left.
 right.
+simpl.
 unfold FLX_exp.
 split ; omega.
 Qed.
+
+End Prec_gt_0.
 
 End RND_FLX.

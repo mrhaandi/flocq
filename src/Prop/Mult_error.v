@@ -25,8 +25,7 @@ Section Fprop_mult_error.
 Variable beta : radix.
 Notation bpow e := (bpow beta e).
 
-Variable prec : Z.
-Context { prec_gt_0_ : Prec_gt_0 prec }.
+Variable prec : Prec_gt_0.
 
 Notation format := (generic_format beta (FLX_exp prec)).
 Notation cexp := (cexp beta (FLX_exp prec)).
@@ -42,7 +41,7 @@ Lemma mult_error_FLX_aux:
     (F2R f = round beta (FLX_exp prec) rnd (x * y) - (x * y))%R
     /\ (cexp (F2R f) <= Fexp f)%Z
     /\ (Fexp f = cexp x + cexp y)%Z.
-Proof with auto with typeclass_instances.
+Proof.
 intros x y Hx Hy Hz.
 set (f := (round beta (FLX_exp prec) rnd (x * y))).
 destruct (Req_dec (x * y) 0) as [Hxy0|Hxy0].
@@ -123,7 +122,7 @@ apply Zplus_le_compat_r.
 rewrite mag_unique with (1 := Hexy).
 apply mag_le_bpow with (1 := Hz).
 replace (bpow (exy - prec)) with (ulp beta (FLX_exp prec) (x * y)).
-apply error_lt_ulp...
+now apply error_lt_ulp.
 rewrite ulp_neq_0; trivial.
 unfold cexp.
 now rewrite mag_unique with (1 := Hexy).
@@ -153,8 +152,8 @@ Section Fprop_mult_error_FLT.
 Variable beta : radix.
 Notation bpow e := (bpow beta e).
 
-Variable emin prec : Z.
-Context { prec_gt_0_ : Prec_gt_0 prec }.
+Variable emin : Z.
+Variable prec : Prec_gt_0.
 
 Notation format := (generic_format beta (FLT_exp emin prec)).
 Notation cexp := (cexp beta (FLT_exp emin prec)).

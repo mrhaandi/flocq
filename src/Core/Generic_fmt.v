@@ -30,55 +30,17 @@ Notation bpow e := (bpow beta e).
 
 Section Format.
 
+Section fexp.
+
 Variable fexp : Z -> Z.
 
-(** To be a good fexp *)
-
-Class Valid_exp :=
-  valid_exp :
-  forall k : Z,
-  ( (fexp k < k)%Z -> (fexp (k + 1) <= k)%Z ) /\
-  ( (k <= fexp k)%Z ->
-    (fexp (fexp k + 1) <= fexp k)%Z /\
-    forall l : Z, (l <= fexp k)%Z -> fexp l = fexp k ).
-
-Context { valid_exp_ : Valid_exp }.
-
-Theorem valid_exp_large :
-  forall k l,
-  (fexp k < k)%Z -> (k <= l)%Z ->
-  (fexp l < l)%Z.
-Proof.
-intros k l Hk H.
-apply Znot_ge_lt.
-intros Hl.
-apply Zge_le in Hl.
-assert (H' := proj2 (proj2 (valid_exp l) Hl) k).
-omega.
-Qed.
-
-Theorem valid_exp_large' :
-  forall k l,
-  (fexp k < k)%Z -> (l <= k)%Z ->
-  (fexp l < k)%Z.
-Proof.
-intros k l Hk H.
-apply Znot_ge_lt.
-intros H'.
-apply Zge_le in H'.
-assert (Hl := Zle_trans _ _ _ H H').
-apply valid_exp in Hl.
-assert (H1 := proj2 Hl k H').
-omega.
-Qed.
-
-Definition cexp x :=
+Definition cexp (x : R) :=
   fexp (mag beta x).
 
 Definition canonical (f : float beta) :=
   Fexp f = cexp (F2R f).
 
-Definition scaled_mantissa x :=
+Definition scaled_mantissa (x : R) :=
   (x * bpow (- cexp x))%R.
 
 Definition generic_format (x : R) :=
@@ -140,20 +102,6 @@ rewrite <- F2R_bpow.
 rewrite F2R_change_exp with (1 := H).
 now rewrite Zmult_1_l.
 now apply Zle_minus_le_0.
-Qed.
-
-Theorem generic_format_bpow' :
-  forall e, (fexp e <= e)%Z ->
-  generic_format (bpow e).
-Proof.
-intros e He.
-apply generic_format_bpow.
-destruct (Zle_lt_or_eq _ _ He).
-now apply valid_exp_.
-rewrite <- H.
-apply valid_exp.
-rewrite H.
-apply Zle_refl.
 Qed.
 
 Theorem generic_format_F2R :
@@ -370,31 +318,6 @@ apply Rlt_le_trans with (1 := proj2 Hx).
 now apply bpow_le.
 Qed.
 
-Theorem scaled_mantissa_small :
-  forall x ex,
-  (Rabs x < bpow ex)%R ->
-  (ex <= fexp ex)%Z ->
-  (Rabs (scaled_mantissa x) < 1)%R.
-Proof.
-intros x ex Ex He.
-destruct (Req_dec x 0) as [Zx|Zx].
-rewrite Zx, scaled_mantissa_0, Rabs_R0.
-now apply (Z2R_lt 0 1).
-rewrite <- scaled_mantissa_abs.
-unfold scaled_mantissa.
-rewrite cexp_abs.
-unfold cexp.
-destruct (mag beta x) as (ex', Ex').
-simpl.
-specialize (Ex' Zx).
-apply (mantissa_small_pos _ _ Ex').
-assert (ex' <= fexp ex)%Z.
-apply Zle_trans with (2 := He).
-apply bpow_lt_bpow with beta.
-now apply Rle_lt_trans with (2 := Ex).
-now rewrite (proj2 (proj2 (valid_exp _) He)).
-Qed.
-
 Theorem abs_scaled_mantissa_lt_bpow :
   forall x,
   (Rabs (scaled_mantissa x) < bpow (mag beta x - cexp x))%R.
@@ -408,30 +331,6 @@ apply bpow_le.
 unfold scaled_mantissa.
 rewrite mag_mult_bpow with (1 := Zx).
 apply Zle_refl.
-Qed.
-
-Theorem mag_generic_gt :
-  forall x, (x <> 0)%R ->
-  generic_format x ->
-  (cexp x < mag beta x)%Z.
-Proof.
-intros x Zx Gx.
-apply Znot_ge_lt.
-unfold cexp.
-destruct (mag beta x) as (ex,Ex) ; simpl.
-specialize (Ex Zx).
-intros H.
-apply Zge_le in H.
-generalize (scaled_mantissa_small x ex (proj2 Ex) H).
-contradict Zx.
-rewrite Gx.
-replace (Ztrunc (scaled_mantissa x)) with Z0.
-apply F2R_0.
-cut (Zabs (Ztrunc (scaled_mantissa x)) < 1)%Z.
-clear ; zify ; omega.
-apply lt_Z2R.
-rewrite Z2R_abs.
-now rewrite <- scaled_mantissa_generic.
 Qed.
 
 Theorem mantissa_DN_small_pos :
@@ -550,9 +449,51 @@ apply (bpow_lt _ _ 0).
 clear -He ; omega.
 Qed.
 
+End fexp.
+
+(** To be a good fexp *)
+
+Record Valid_exp := {
+  fexp :> Z -> Z ;
+  valid_exp1 : forall k : Z, (fexp k < k)%Z -> (fexp (k + 1) <= k)%Z ;
+  valid_exp2 : forall k : Z, (k <= fexp k)%Z ->(fexp (fexp k + 1) <= fexp k)%Z ;
+  valid_exp3 : forall k l : Z, (k <= fexp k)%Z -> (l <= fexp k)%Z -> fexp l = fexp k
+}.
+
+Section valid_exp.
+
+Variable fexp : Valid_exp.
+
+Theorem valid_exp_large :
+  forall k l,
+  (fexp k < k)%Z -> (k <= l)%Z ->
+  (fexp l < l)%Z.
+Proof.
+intros k l Hk H.
+apply Znot_ge_lt.
+intros Hl.
+apply Zge_le in Hl.
+assert (H' := valid_exp3 fexp l k).
+omega.
+Qed.
+
+Theorem valid_exp_large' :
+  forall k l,
+  (fexp k < k)%Z -> (l <= k)%Z ->
+  (fexp l < k)%Z.
+Proof.
+intros k l Hk H.
+apply Znot_ge_lt.
+intros H'.
+apply Zge_le in H'.
+assert (Hl := Zle_trans _ _ _ H H').
+assert (H1 := valid_exp3 fexp l k).
+omega.
+Qed.
+
 Theorem generic_format_bpow_inv :
   forall e,
-  generic_format (bpow e) ->
+  generic_format fexp (bpow e) ->
   (fexp e <= e)%Z.
 Proof.
 intros e He.
@@ -561,7 +502,74 @@ assert (H := valid_exp_large' (e + 1) e).
 omega.
 Qed.
 
-Section Fcore_generic_round_pos.
+Theorem generic_format_bpow' :
+  forall e, (fexp e <= e)%Z ->
+  generic_format fexp (bpow e).
+Proof.
+intros e He.
+apply generic_format_bpow.
+destruct (Zle_lt_or_eq _ _ He).
+now apply valid_exp1.
+rewrite <- H.
+apply valid_exp2.
+rewrite H.
+apply Zle_refl.
+Qed.
+
+Theorem scaled_mantissa_small :
+  forall x ex,
+  (Rabs x < bpow ex)%R ->
+  (ex <= fexp ex)%Z ->
+  (Rabs (scaled_mantissa fexp x) < 1)%R.
+Proof.
+intros x ex Ex He.
+destruct (Req_dec x 0) as [Zx|Zx].
+rewrite Zx, scaled_mantissa_0, Rabs_R0.
+now apply (Z2R_lt 0 1).
+rewrite <- scaled_mantissa_abs.
+unfold scaled_mantissa.
+rewrite cexp_abs.
+unfold cexp.
+destruct (mag beta x) as (ex', Ex').
+simpl.
+specialize (Ex' Zx).
+apply mantissa_small_pos with (1 := Ex').
+assert (ex' <= fexp ex)%Z.
+apply Zle_trans with (2 := He).
+apply bpow_lt_bpow with beta.
+now apply Rle_lt_trans with (2 := Ex).
+now rewrite valid_exp3 with (1 := He).
+Qed.
+
+Theorem mag_generic_gt :
+  forall x, (x <> 0)%R ->
+  generic_format fexp x ->
+  (cexp fexp x < mag beta x)%Z.
+Proof.
+intros x Zx Gx.
+apply Znot_ge_lt.
+unfold cexp.
+destruct (mag beta x) as (ex,Ex) ; simpl.
+specialize (Ex Zx).
+intros H.
+apply Zge_le in H.
+generalize (scaled_mantissa_small x ex (proj2 Ex) H).
+contradict Zx.
+rewrite Gx.
+replace (Ztrunc (scaled_mantissa fexp x)) with Z0.
+apply F2R_0.
+cut (Zabs (Ztrunc (scaled_mantissa fexp x)) < 1)%Z.
+clear ; zify ; omega.
+apply lt_Z2R.
+rewrite Z2R_abs.
+now rewrite <- scaled_mantissa_generic.
+Qed.
+
+End valid_exp.
+
+Section valid_rnd.
+
+Variable fexp : Z -> Z.
 
 (** Rounding functions: R -> Z *)
 
@@ -611,7 +619,7 @@ Qed.
 
 (** the most useful one: R -> F *)
 Definition round (rnd : R -> Z) (x : R) :=
-  F2R (Float beta (rnd (scaled_mantissa x)) (cexp x)).
+  F2R (Float beta (rnd (scaled_mantissa fexp x)) (cexp fexp x)).
 
 Theorem round_bounded_large_pos :
   forall x ex,
@@ -621,7 +629,7 @@ Theorem round_bounded_large_pos :
 Proof.
 intros x ex He Hx.
 unfold round, scaled_mantissa.
-rewrite (cexp_fexp_pos _ _ Hx).
+rewrite cexp_fexp_pos with (1 := Hx).
 unfold F2R. simpl.
 destruct (Zrnd_DN_or_UP (x * bpow (- fexp ex))) as [Hr|Hr] ; rewrite Hr.
 (* DN *)
@@ -680,7 +688,7 @@ Theorem round_bounded_small_pos :
 Proof.
 intros x ex He Hx.
 unfold round, scaled_mantissa.
-rewrite (cexp_fexp_pos _ _ Hx).
+rewrite cexp_fexp_pos with (1 := Hx).
 unfold F2R. simpl.
 destruct (Zrnd_DN_or_UP (x * bpow (-fexp ex))) as [Hr|Hr] ; rewrite Hr.
 (* DN *)
@@ -700,56 +708,9 @@ refine (let H := _ in conj (proj1 H) (Rlt_le _ _ (proj2 H))).
 now apply mantissa_small_pos.
 Qed.
 
-Theorem round_le_pos :
-  forall x y, (0 < x)%R -> (x <= y)%R -> (round rnd x <= round rnd y)%R.
-Proof.
-intros x y Hx Hxy.
-destruct (mag beta x) as [ex Hex].
-destruct (mag beta y) as [ey Hey].
-specialize (Hex (Rgt_not_eq _ _ Hx)).
-specialize (Hey (Rgt_not_eq _ _ (Rlt_le_trans _ _ _ Hx Hxy))).
-rewrite Rabs_pos_eq in Hex.
-2: now apply Rlt_le.
-rewrite Rabs_pos_eq in Hey.
-2: apply Rle_trans with (2:=Hxy); now apply Rlt_le.
-assert (He: (ex <= ey)%Z).
-  apply bpow_lt_bpow with beta.
-  apply Rle_lt_trans with (1 := proj1 Hex).
-  now apply Rle_lt_trans with y.
-assert (Heq: fexp ex = fexp ey -> (round rnd x <= round rnd y)%R).
-  intros H.
-  unfold round, scaled_mantissa, cexp.
-  rewrite mag_unique_pos with (1 := Hex).
-  rewrite mag_unique_pos with (1 := Hey).
-  rewrite H.
-  apply F2R_le_compat.
-  apply Zrnd_le.
-  apply Rmult_le_compat_r with (2 := Hxy).
-  apply bpow_ge_0.
-destruct (Zle_or_lt ey (fexp ey)) as [Hy1|Hy1].
-  apply Heq.
-  apply valid_exp with (1 := Hy1).
-  now apply Zle_trans with ey.
-destruct (Zle_lt_or_eq _ _ He) as [He'|He'].
-2: now apply Heq, f_equal.
-apply Rle_trans with (bpow (ey - 1)).
-2: now apply round_bounded_large_pos.
-destruct (Zle_or_lt ex (fexp ex)) as [Hx1|Hx1].
-  destruct (round_bounded_small_pos _ _ Hx1 Hex) as [-> | ->].
-  apply bpow_ge_0.
-  apply bpow_le.
-  apply valid_exp, proj2 in Hx1.
-  specialize (Hx1 ey).
-  omega.
-apply Rle_trans with (bpow ex).
-now apply round_bounded_large_pos.
-apply bpow_le.
-now apply Z.lt_le_pred.
-Qed.
-
 Theorem round_generic :
   forall x,
-  generic_format x ->
+  generic_format fexp x ->
   round rnd x = x.
 Proof.
 intros x Hx.
@@ -780,47 +741,170 @@ contradict H1.
 apply Rgt_not_eq.
 apply Rlt_le_trans with (bpow (ex-1)).
 apply bpow_gt_0.
-apply (round_bounded_large_pos); assumption.
+now apply round_bounded_large_pos.
+Qed.
+
+Theorem round_DN_or_UP :
+  forall x,
+  round rnd x = round Zfloor x \/ round rnd x = round Zceil x.
+Proof.
+intros x.
+unfold round.
+destruct (Zrnd_DN_or_UP (scaled_mantissa fexp x)) as [Hx|Hx].
+left. now rewrite Hx.
+right. now rewrite Hx.
+Qed.
+
+Theorem round_ZR_or_AW :
+  forall x,
+  round rnd x = round Ztrunc x \/ round rnd x = round Zaway x.
+Proof.
+intros x.
+unfold round.
+destruct (Zrnd_ZR_or_AW (scaled_mantissa fexp x)) as [Hx|Hx].
+left. now rewrite Hx.
+right. now rewrite Hx.
+Qed.
+
+Theorem round_DN_small_pos :
+  forall x ex,
+  (bpow (ex - 1) <= x < bpow ex)%R ->
+  (ex <= fexp ex)%Z ->
+  round Zfloor x = 0%R.
+Proof.
+intros x ex Hx He.
+rewrite <- (F2R_0 beta (cexp fexp x)).
+rewrite <- mantissa_DN_small_pos with (1 := Hx) (2 := He).
+now rewrite <- cexp_fexp_pos with (1 := Hx).
+Qed.
+
+Theorem round_UP_small_pos :
+  forall x ex,
+  (bpow (ex - 1) <= x < bpow ex)%R ->
+  (ex <= fexp ex)%Z ->
+  round Zceil x = bpow (fexp ex).
+Proof.
+intros x ex Hx He.
+rewrite <- F2R_bpow.
+rewrite <- mantissa_UP_small_pos with (1 := Hx) (2 := He).
+now rewrite <- cexp_fexp_pos with (1 := Hx).
+Qed.
+
+Theorem round_large_pos_ge_pow :
+  forall x e,
+  (0 < round rnd x)%R ->
+  (bpow e <= x)%R ->
+  (bpow e <= round rnd x)%R.
+Proof.
+intros x e Hd Hex.
+destruct (mag beta x) as (ex, He).
+assert (Hx: (0 < x)%R).
+apply Rlt_le_trans with (2 := Hex).
+apply bpow_gt_0.
+specialize (He (Rgt_not_eq _ _ Hx)).
+rewrite Rabs_pos_eq in He. 2: now apply Rlt_le.
+apply Rle_trans with (bpow (ex - 1)).
+apply bpow_le.
+cut (e < ex)%Z. omega.
+apply (lt_bpow beta).
+now apply Rle_lt_trans with (2 := proj2 He).
+destruct (Zle_or_lt ex (fexp ex)).
+destruct (round_bounded_small_pos x ex H He) as [Hr|Hr].
+rewrite Hr in Hd.
+elim Rlt_irrefl with (1 := Hd).
+rewrite Hr.
+apply bpow_le.
+omega.
+now apply round_bounded_large_pos.
+Qed.
+
+End valid_rnd.
+
+Theorem round_le_pos :
+  forall (fexp : Valid_exp) (rnd : Valid_rnd) x y,
+  (0 < x)%R -> (x <= y)%R ->
+  (round fexp rnd x <= round fexp rnd y)%R.
+Proof.
+intros fexp rnd x y Hx Hxy.
+destruct (mag beta x) as [ex Hex].
+destruct (mag beta y) as [ey Hey].
+specialize (Hex (Rgt_not_eq _ _ Hx)).
+specialize (Hey (Rgt_not_eq _ _ (Rlt_le_trans _ _ _ Hx Hxy))).
+rewrite Rabs_pos_eq in Hex.
+2: now apply Rlt_le.
+rewrite Rabs_pos_eq in Hey.
+2: apply Rle_trans with (2:=Hxy); now apply Rlt_le.
+assert (He: (ex <= ey)%Z).
+  apply bpow_lt_bpow with beta.
+  apply Rle_lt_trans with (1 := proj1 Hex).
+  now apply Rle_lt_trans with y.
+assert (Heq: fexp ex = fexp ey -> (round fexp rnd x <= round fexp rnd y)%R).
+  intros H.
+  unfold round, scaled_mantissa, cexp.
+  rewrite mag_unique_pos with (1 := Hex).
+  rewrite mag_unique_pos with (1 := Hey).
+  rewrite H.
+  apply F2R_le_compat.
+  apply Zrnd_le.
+  apply Rmult_le_compat_r with (2 := Hxy).
+  apply bpow_ge_0.
+destruct (Zle_or_lt ey (fexp ey)) as [Hy1|Hy1].
+  apply Heq.
+  apply valid_exp3 with (1 := Hy1).
+  now apply Zle_trans with ey.
+destruct (Zle_lt_or_eq _ _ He) as [He'|He'].
+2: now apply Heq, f_equal.
+apply Rle_trans with (bpow (ey - 1)).
+2: now apply round_bounded_large_pos.
+destruct (Zle_or_lt ex (fexp ex)) as [Hx1|Hx1].
+  destruct (round_bounded_small_pos _ rnd _ _ Hx1 Hex) as [-> | ->].
+  apply bpow_ge_0.
+  apply bpow_le.
+  generalize (valid_exp2 _ _ Hx1).
+  generalize (valid_exp3 _ _ ey Hx1).
+  omega.
+apply Rle_trans with (bpow ex).
+now apply round_bounded_large_pos.
+apply bpow_le.
+now apply Z.lt_le_pred.
 Qed.
 
 Theorem generic_format_round_pos :
-  forall x,
+  forall (fexp : Valid_exp) (rnd : Valid_rnd) x,
   (0 < x)%R ->
-  generic_format (round rnd x).
+  generic_format fexp (round fexp rnd x).
 Proof.
-intros x Hx0.
+intros fexp rnd x Hx0.
 destruct (mag beta x) as (ex, Hex).
 specialize (Hex (Rgt_not_eq _ _ Hx0)).
 rewrite Rabs_pos_eq in Hex. 2: now apply Rlt_le.
 destruct (Zle_or_lt ex (fexp ex)) as [He|He].
 (* small *)
-destruct (round_bounded_small_pos _ _ He Hex) as [Hr|Hr] ; rewrite Hr.
+destruct (round_bounded_small_pos _ rnd _ _ He Hex) as [Hr|Hr] ; rewrite Hr.
 apply generic_format_0.
 apply generic_format_bpow.
-now apply valid_exp.
+now apply valid_exp2.
 (* large *)
-generalize (round_bounded_large_pos _ _ He Hex).
+generalize (round_bounded_large_pos _ rnd _ _ He Hex).
 intros (Hr1, Hr2).
-destruct (Rle_or_lt (bpow ex) (round rnd x)) as [Hr|Hr].
+destruct (Rle_or_lt (bpow ex) (round fexp rnd x)) as [Hr|Hr].
 rewrite <- (Rle_antisym _ _ Hr Hr2).
 apply generic_format_bpow.
-now apply valid_exp.
+now apply valid_exp1.
 apply generic_format_F2R.
 intros _.
-rewrite (cexp_fexp_pos (F2R _) _ (conj Hr1 Hr)).
-rewrite (cexp_fexp_pos _ _ Hex).
-now apply Zeq_le.
+rewrite (cexp_fexp_pos fexp (F2R _) _ (conj Hr1 Hr)).
+rewrite cexp_fexp_pos with (1 := Hex).
+apply Zle_refl.
 Qed.
 
-End Fcore_generic_round_pos.
-
 Theorem round_ext :
-  forall rnd1 rnd2,
+  forall fexp rnd1 rnd2,
   ( forall x, rnd1 x = rnd2 x ) ->
   forall x,
-  round rnd1 x = round rnd2 x.
+  round fexp rnd1 x = round fexp rnd2 x.
 Proof.
-intros rnd1 rnd2 Hext x.
+intros fexp rnd1 rnd2 Hext x.
 unfold round.
 now rewrite Hext.
 Qed.
@@ -855,15 +939,15 @@ Canonical Structure valid_rnd_opp :=
   Build_Valid_rnd (Zrnd_opp rnd) Zrnd_opp_le Zrnd_opp_Z2R.
 
 Theorem round_opp :
-  forall x,
-  round rnd (- x) = Ropp (round (Zrnd_opp rnd) x).
+  forall fexp x,
+  round fexp rnd (- x) = Ropp (round fexp (Zrnd_opp rnd) x).
 Proof.
-intros x.
+intros fexp x.
 unfold round.
 rewrite <- F2R_Zopp, cexp_opp, scaled_mantissa_opp.
 apply F2R_eq_compat.
 apply sym_eq.
-exact (Zopp_involutive _).
+apply Zopp_involutive.
 Qed.
 
 End Zround_opp.
@@ -884,32 +968,13 @@ Canonical Structure valid_rnd_AW :=
 
 Section monotone.
 
+Variable fexp : Valid_exp.
 Variable rnd : Valid_rnd.
 
-Theorem round_DN_or_UP :
-  forall x,
-  round rnd x = round Zfloor x \/ round rnd x = round Zceil x.
-Proof.
-intros x.
-unfold round.
-destruct (Zrnd_DN_or_UP rnd (scaled_mantissa x)) as [Hx|Hx].
-left. now rewrite Hx.
-right. now rewrite Hx.
-Qed.
-
-Theorem round_ZR_or_AW :
-  forall x,
-  round rnd x = round Ztrunc x \/ round rnd x = round Zaway x.
-Proof.
-intros x.
-unfold round.
-destruct (Zrnd_ZR_or_AW rnd (scaled_mantissa x)) as [Hx|Hx].
-left. now rewrite Hx.
-right. now rewrite Hx.
-Qed.
-
 Theorem round_le :
-  forall x y, (x <= y)%R -> (round rnd x <= round rnd y)%R.
+  forall x y : R,
+  (x <= y)%R ->
+  (round fexp rnd x <= round fexp rnd y)%R.
 Proof.
 intros x y Hxy.
 destruct (total_order_T x 0) as [[Hx|Hx]|Hx].
@@ -919,11 +984,11 @@ unfold round.
 destruct (Rlt_or_le y 0) as [Hy|Hy].
 (* . y < 0 *)
 rewrite <- (Ropp_involutive x), <- (Ropp_involutive y).
-rewrite (scaled_mantissa_opp (-x)), (scaled_mantissa_opp (-y)).
-rewrite (cexp_opp (-x)), (cexp_opp (-y)).
+rewrite (scaled_mantissa_opp fexp (-x)), (scaled_mantissa_opp fexp (-y)).
+rewrite (cexp_opp fexp (-x)), (cexp_opp fexp (-y)).
 apply Ropp_le_cancel.
 rewrite <- 2!F2R_Zopp.
-apply (round_le_pos [>>Zrnd Zrnd_opp _] (-y) (-x)).
+apply (round_le_pos fexp [>>Zrnd Zrnd_opp _] (-y) (-x)).
 rewrite <- Ropp_0.
 now apply Ropp_lt_contravar.
 now apply Ropp_le_contravar.
@@ -956,18 +1021,22 @@ apply bpow_ge_0.
 Qed.
 
 Theorem round_ge_generic :
-  forall x y, generic_format x -> (x <= y)%R -> (x <= round rnd y)%R.
+  forall x y : R,
+  generic_format fexp x -> (x <= y)%R ->
+  (x <= round fexp rnd y)%R.
 Proof.
 intros x y Hx Hxy.
-rewrite <- (round_generic rnd x Hx).
+rewrite <- (round_generic fexp rnd x Hx).
 now apply round_le.
 Qed.
 
 Theorem round_le_generic :
-  forall x y, generic_format y -> (x <= y)%R -> (round rnd x <= y)%R.
+  forall x y : R,
+  generic_format fexp y -> (x <= y)%R ->
+  (round fexp rnd x <= y)%R.
 Proof.
 intros x y Hy Hxy.
-rewrite <- (round_generic rnd y Hy).
+rewrite <- (round_generic fexp rnd y Hy).
 now apply round_le.
 Qed.
 
@@ -975,17 +1044,19 @@ End monotone.
 
 Section abs_abs.
 
+Variable fexp : Valid_exp.
+
 Theorem round_abs_abs :
-  forall P : R -> R -> Prop,
-  ( forall (rnd : Valid_rnd) x, (0 <= x)%R -> P x (round rnd x) ) ->
-  forall (rnd : Valid_rnd) x, P (Rabs x) (Rabs (round rnd x)).
+  forall (P : R -> R -> Prop),
+  ( forall (rnd : Valid_rnd) x, (0 <= x)%R -> P x (round fexp rnd x) ) ->
+  forall (rnd : Valid_rnd) x, P (Rabs x) (Rabs (round fexp rnd x)).
 Proof.
 intros P HP rnd x.
 destruct (Rle_or_lt 0 x) as [Hx|Hx].
 (* . *)
 rewrite 2!Rabs_pos_eq.
 now apply HP.
-rewrite <- (round_0 rnd).
+rewrite <- (round_0 fexp rnd).
 now apply round_le.
 exact Hx.
 (* . *)
@@ -998,7 +1069,7 @@ apply HP.
 rewrite <- Ropp_0.
 apply Ropp_le_contravar.
 now apply Rlt_le.
-rewrite <- (round_0 rnd).
+rewrite <- (round_0 fexp rnd).
 apply round_le.
 now apply Rlt_le.
 Qed.
@@ -1009,7 +1080,7 @@ Theorem round_bounded_large :
   forall x ex,
   (fexp ex < ex)%Z ->
   (bpow (ex - 1) <= Rabs x < bpow ex)%R ->
-  (bpow (ex - 1) <= Rabs (round rnd x) <= bpow ex)%R.
+  (bpow (ex - 1) <= Rabs (round fexp rnd x) <= bpow ex)%R.
 Proof.
 intros x ex He.
 apply round_abs_abs.
@@ -1021,7 +1092,7 @@ Qed.
 Theorem exp_small_round_0 :
   forall x ex,
   (bpow (ex - 1) <= Rabs x < bpow ex)%R ->
-  round rnd x = 0%R -> (ex <= fexp ex)%Z.
+  round fexp rnd x = 0%R -> (ex <= fexp ex)%Z.
 Proof.
 intros x ex H1 H2.
 generalize Rabs_R0.
@@ -1034,8 +1105,8 @@ Qed.
 
 Theorem abs_round_ge_generic :
   forall x y : R,
-  generic_format x -> (x <= Rabs y)%R ->
-  (x <= Rabs (round rnd y))%R.
+  generic_format fexp x -> (x <= Rabs y)%R ->
+  (x <= Rabs (round fexp rnd y))%R.
 Proof.
 intros x y.
 apply round_abs_abs.
@@ -1046,8 +1117,8 @@ Qed.
 
 Theorem abs_round_le_generic :
   forall x y : R,
-  generic_format y -> (Rabs x <= y)%R ->
-  (Rabs (round rnd x) <= y)%R.
+  generic_format fexp y -> (Rabs x <= y)%R ->
+  (Rabs (round fexp rnd x) <= y)%R.
 Proof.
 intros x y.
 apply round_abs_abs.
@@ -1058,9 +1129,13 @@ Qed.
 
 End abs_abs.
 
+Section round_opp.
+
+Variable fexp : Z -> Z.
+
 Theorem round_DN_opp :
   forall x,
-  round Zfloor (-x) = (- round Zceil x)%R.
+  round fexp Zfloor (-x) = (- round fexp Zceil x)%R.
 Proof.
 intros x.
 unfold round.
@@ -1073,7 +1148,7 @@ Qed.
 
 Theorem round_UP_opp :
   forall x,
-  round Zceil (-x) = (- round Zfloor x)%R.
+  round fexp Zceil (-x) = (- round fexp Zfloor x)%R.
 Proof.
 intros x.
 unfold round.
@@ -1086,7 +1161,7 @@ Qed.
 
 Theorem round_ZR_opp :
   forall x,
-  round Ztrunc (- x) = Ropp (round Ztrunc x).
+  round fexp Ztrunc (- x) = Ropp (round fexp Ztrunc x).
 Proof.
 intros x.
 unfold round.
@@ -1094,14 +1169,100 @@ rewrite scaled_mantissa_opp, cexp_opp, Ztrunc_opp.
 apply F2R_Zopp.
 Qed.
 
+Theorem round_AW_opp :
+  forall x,
+  round fexp Zaway (- x) = Ropp (round fexp Zaway x).
+Proof.
+intros x.
+unfold round.
+rewrite scaled_mantissa_opp, cexp_opp, Zaway_opp.
+apply F2R_Zopp.
+Qed.
+
+Theorem round_ZR_pos :
+  forall x,
+  (0 <= x)%R ->
+  round fexp Ztrunc x = round fexp Zfloor x.
+Proof.
+intros x Hx.
+unfold round, Ztrunc.
+case Rlt_bool_spec.
+intros H.
+elim Rlt_not_le with (1 := H).
+rewrite <- (Rmult_0_l (bpow (- cexp fexp x))).
+apply Rmult_le_compat_r with (2 := Hx).
+apply bpow_ge_0.
+easy.
+Qed.
+
+Theorem round_ZR_neg :
+  forall x,
+  (x <= 0)%R ->
+  round fexp Ztrunc x = round fexp Zceil x.
+Proof.
+intros x Hx.
+unfold round, Ztrunc.
+case Rlt_bool_spec.
+easy.
+intros [H|H].
+elim Rlt_not_le with (1 := H).
+rewrite <- (Rmult_0_l (bpow (- cexp fexp x))).
+apply Rmult_le_compat_r with (2 := Hx).
+apply bpow_ge_0.
+rewrite <- H.
+change 0%R with (Z2R 0).
+now rewrite Zfloor_Z2R, Zceil_Z2R.
+Qed.
+
+Theorem round_AW_pos :
+  forall x,
+  (0 <= x)%R ->
+  round fexp Zaway x = round fexp Zceil x.
+Proof.
+intros x Hx.
+unfold round, Zaway.
+case Rlt_bool_spec.
+intros H.
+elim Rlt_not_le with (1 := H).
+rewrite <- (Rmult_0_l (bpow (- cexp fexp x))).
+apply Rmult_le_compat_r with (2 := Hx).
+apply bpow_ge_0.
+easy.
+Qed.
+
+Theorem round_AW_neg :
+  forall x,
+  (x <= 0)%R ->
+  round fexp Zaway x = round fexp Zfloor x.
+Proof.
+intros x Hx.
+unfold round, Zaway.
+case Rlt_bool_spec.
+easy.
+intros [H|H].
+elim Rlt_not_le with (1 := H).
+rewrite <- (Rmult_0_l (bpow (- cexp fexp x))).
+apply Rmult_le_compat_r with (2 := Hx).
+apply bpow_ge_0.
+rewrite <- H.
+change 0%R with (Z2R 0).
+now rewrite Zfloor_Z2R, Zceil_Z2R.
+Qed.
+
+End round_opp.
+
+Section generic_fmt_round.
+
+Variable fexp : Valid_exp.
+
 Theorem round_ZR_abs :
   forall x,
-  round Ztrunc (Rabs x) = Rabs (round Ztrunc x).
+  round fexp Ztrunc (Rabs x) = Rabs (round fexp Ztrunc x).
 Proof.
 intros x.
 apply sym_eq.
 unfold Rabs at 2.
-assert (H0: round Ztrunc 0 = 0%R) by apply round_0.
+assert (H0: round fexp Ztrunc 0 = 0%R) by apply round_0.
 destruct (Rcase_abs x) as [Hx|Hx].
 rewrite round_ZR_opp.
 apply Rabs_left1.
@@ -1114,24 +1275,14 @@ apply round_le.
 now apply Rge_le.
 Qed.
 
-Theorem round_AW_opp :
-  forall x,
-  round Zaway (- x) = Ropp (round Zaway x).
-Proof.
-intros x.
-unfold round.
-rewrite scaled_mantissa_opp, cexp_opp, Zaway_opp.
-apply F2R_Zopp.
-Qed.
-
 Theorem round_AW_abs :
   forall x,
-  round Zaway (Rabs x) = Rabs (round Zaway x).
+  round fexp Zaway (Rabs x) = Rabs (round fexp Zaway x).
 Proof.
 intros x.
 apply sym_eq.
 unfold Rabs at 2.
-assert (H0: round Zaway 0 = 0%R) by apply round_0.
+assert (H0: round fexp Zaway 0 = 0%R) by apply round_0.
 destruct (Rcase_abs x) as [Hx|Hx].
 rewrite round_AW_opp.
 apply Rabs_left1.
@@ -1144,84 +1295,14 @@ apply round_le.
 now apply Rge_le.
 Qed.
 
-Theorem round_ZR_pos :
-  forall x,
-  (0 <= x)%R ->
-  round Ztrunc x = round Zfloor x.
-Proof.
-intros x Hx.
-unfold round, Ztrunc.
-case Rlt_bool_spec.
-intros H.
-elim Rlt_not_le with (1 := H).
-rewrite <- (Rmult_0_l (bpow (- cexp x))).
-apply Rmult_le_compat_r with (2 := Hx).
-apply bpow_ge_0.
-easy.
-Qed.
-
-Theorem round_ZR_neg :
-  forall x,
-  (x <= 0)%R ->
-  round Ztrunc x = round Zceil x.
-Proof.
-intros x Hx.
-unfold round, Ztrunc.
-case Rlt_bool_spec.
-easy.
-intros [H|H].
-elim Rlt_not_le with (1 := H).
-rewrite <- (Rmult_0_l (bpow (- cexp x))).
-apply Rmult_le_compat_r with (2 := Hx).
-apply bpow_ge_0.
-rewrite <- H.
-change 0%R with (Z2R 0).
-now rewrite Zfloor_Z2R, Zceil_Z2R.
-Qed.
-
-Theorem round_AW_pos :
-  forall x,
-  (0 <= x)%R ->
-  round Zaway x = round Zceil x.
-Proof.
-intros x Hx.
-unfold round, Zaway.
-case Rlt_bool_spec.
-intros H.
-elim Rlt_not_le with (1 := H).
-rewrite <- (Rmult_0_l (bpow (- cexp x))).
-apply Rmult_le_compat_r with (2 := Hx).
-apply bpow_ge_0.
-easy.
-Qed.
-
-Theorem round_AW_neg :
-  forall x,
-  (x <= 0)%R ->
-  round Zaway x = round Zfloor x.
-Proof.
-intros x Hx.
-unfold round, Zaway.
-case Rlt_bool_spec.
-easy.
-intros [H|H].
-elim Rlt_not_le with (1 := H).
-rewrite <- (Rmult_0_l (bpow (- cexp x))).
-apply Rmult_le_compat_r with (2 := Hx).
-apply bpow_ge_0.
-rewrite <- H.
-change 0%R with (Z2R 0).
-now rewrite Zfloor_Z2R, Zceil_Z2R.
-Qed.
-
 Theorem generic_format_round :
   forall (rnd : Valid_rnd) x,
-  generic_format (round rnd x).
+  generic_format fexp (round fexp rnd x).
 Proof.
 intros rnd x.
 destruct (total_order_T x 0) as [[Hx|Hx]|Hx].
 rewrite <- (Ropp_involutive x).
-destruct (round_DN_or_UP rnd (- - x)) as [Hr|Hr] ; rewrite Hr.
+destruct (round_DN_or_UP fexp rnd (- - x)) as [Hr|Hr] ; rewrite Hr.
 rewrite round_DN_opp.
 apply generic_format_opp.
 apply generic_format_round_pos.
@@ -1238,13 +1319,13 @@ Qed.
 
 Theorem round_DN_pt :
   forall x,
-  Rnd_DN_pt generic_format x (round Zfloor x).
+  Rnd_DN_pt (generic_format fexp) x (round fexp Zfloor x).
 Proof.
 intros x.
 split.
 apply generic_format_round.
 split.
-pattern x at 2 ; rewrite <- scaled_mantissa_mult_bpow.
+pattern x at 2 ; rewrite <- (scaled_mantissa_mult_bpow fexp).
 unfold round, F2R. simpl.
 apply Rmult_le_compat_r.
 apply bpow_ge_0.
@@ -1254,12 +1335,12 @@ apply round_ge_generic.
 Qed.
 
 Theorem generic_format_satisfies_any :
-  satisfies_any generic_format.
+  satisfies_any (generic_format fexp).
 Proof.
 split.
 (* symmetric set *)
-exact generic_format_0.
-exact generic_format_opp.
+apply generic_format_0.
+apply generic_format_opp.
 (* round down *)
 intros x.
 eexists.
@@ -1268,7 +1349,7 @@ Qed.
 
 Theorem round_UP_pt :
   forall x,
-  Rnd_UP_pt generic_format x (round Zceil x).
+  Rnd_UP_pt (generic_format fexp) x (round fexp Zceil x).
 Proof.
 intros x.
 rewrite <- (Ropp_involutive x).
@@ -1280,7 +1361,7 @@ Qed.
 
 Theorem round_ZR_pt :
   forall x,
-  Rnd_ZR_pt generic_format x (round Ztrunc x).
+  Rnd_ZR_pt (generic_format fexp) x (round fexp Ztrunc x).
 Proof.
 intros x.
 split ; intros Hx.
@@ -1290,61 +1371,36 @@ rewrite round_ZR_neg with (1 := Hx).
 apply round_UP_pt.
 Qed.
 
-Theorem round_DN_small_pos :
-  forall x ex,
-  (bpow (ex - 1) <= x < bpow ex)%R ->
-  (ex <= fexp ex)%Z ->
-  round Zfloor x = 0%R.
-Proof.
-intros x ex Hx He.
-rewrite <- (F2R_0 beta (cexp x)).
-rewrite <- mantissa_DN_small_pos with (1 := Hx) (2 := He).
-now rewrite <- cexp_fexp_pos with (1 := Hx).
-Qed.
-
-
 Theorem round_DN_UP_lt :
-  forall x, ~ generic_format x ->
-  (round Zfloor x < x < round Zceil x)%R.
+  forall x, ~ generic_format fexp x ->
+  (round fexp Zfloor x < x < round fexp Zceil x)%R.
 Proof.
 intros x Fx.
-assert (Hx:(round  Zfloor x <= x <= round Zceil x)%R).
+assert (Hx:(round fexp Zfloor x <= x <= round fexp Zceil x)%R).
 split.
 apply round_DN_pt.
 apply round_UP_pt.
 split.
   destruct Hx as [Hx _].
   apply Rnot_le_lt; intro Hle.
-  assert (x = round Zfloor x) by now apply Rle_antisym.
+  assert (x = round fexp Zfloor x) by now apply Rle_antisym.
   rewrite H in Fx.
   contradict Fx.
   apply generic_format_round.
 destruct Hx as [_ Hx].
 apply Rnot_le_lt; intro Hle.
-assert (x = round Zceil x) by now apply Rle_antisym.
+assert (x = round fexp Zceil x) by now apply Rle_antisym.
 rewrite H in Fx.
 contradict Fx.
 apply generic_format_round.
 Qed.
 
-Theorem round_UP_small_pos :
-  forall x ex,
-  (bpow (ex - 1) <= x < bpow ex)%R ->
-  (ex <= fexp ex)%Z ->
-  round Zceil x = bpow (fexp ex).
-Proof.
-intros x ex Hx He.
-rewrite <- F2R_bpow.
-rewrite <- mantissa_UP_small_pos with (1 := Hx) (2 := He).
-now rewrite <- cexp_fexp_pos with (1 := Hx).
-Qed.
-
 Theorem generic_format_EM :
   forall x,
-  generic_format x \/ ~generic_format x.
+  generic_format fexp x \/ ~generic_format fexp x.
 Proof.
 intros x.
-destruct (Req_dec (round Zfloor x) x) as [Hx|Hx].
+destruct (Req_dec (round fexp Zfloor x) x) as [Hx|Hx].
 left.
 rewrite <- Hx.
 apply generic_format_round.
@@ -1354,44 +1410,10 @@ apply Hx.
 now apply round_generic.
 Qed.
 
-Section round_large.
-
-Variable rnd : Valid_rnd.
-
-Theorem round_large_pos_ge_pow :
-  forall x e,
-  (0 < round rnd x)%R ->
-  (bpow e <= x)%R ->
-  (bpow e <= round rnd x)%R.
-Proof.
-intros x e Hd Hex.
-destruct (mag beta x) as (ex, He).
-assert (Hx: (0 < x)%R).
-apply Rlt_le_trans with (2 := Hex).
-apply bpow_gt_0.
-specialize (He (Rgt_not_eq _ _ Hx)).
-rewrite Rabs_pos_eq in He. 2: now apply Rlt_le.
-apply Rle_trans with (bpow (ex - 1)).
-apply bpow_le.
-cut (e < ex)%Z. omega.
-apply (lt_bpow beta).
-now apply Rle_lt_trans with (2 := proj2 He).
-destruct (Zle_or_lt ex (fexp ex)).
-destruct (round_bounded_small_pos rnd x ex H He) as [Hr|Hr].
-rewrite Hr in Hd.
-elim Rlt_irrefl with (1 := Hd).
-rewrite Hr.
-apply bpow_le.
-omega.
-now apply round_bounded_large_pos.
-Qed.
-
-End round_large.
-
 Theorem mag_round_ZR :
   forall x,
-  round Ztrunc x <> 0%R ->
-  mag beta (round Ztrunc x) = mag beta x :> Z.
+  round fexp Ztrunc x <> 0%R ->
+  mag beta (round fexp Ztrunc x) = mag beta x :> Z.
 Proof.
 intros x Zr.
 destruct (Req_dec x 0) as [Zx|Zx].
@@ -1413,12 +1435,12 @@ Qed.
 
 Theorem mag_round :
   forall (rnd : Valid_rnd) x,
-  round rnd x <> 0%R ->
-  mag beta (round rnd x) = mag beta x :> Z \/
-  Rabs (round rnd x) = bpow (Zmax (mag beta x) (fexp (mag beta x))).
+  round fexp rnd x <> 0%R ->
+  mag beta (round fexp rnd x) = mag beta x :> Z \/
+  Rabs (round fexp rnd x) = bpow (Zmax (mag beta x) (fexp (mag beta x))).
 Proof.
 intros rnd x.
-destruct (round_ZR_or_AW rnd x) as [Hr|Hr] ; rewrite Hr ; clear Hr rnd.
+destruct (round_ZR_or_AW fexp rnd x) as [Hr|Hr] ; rewrite Hr ; clear Hr rnd.
 left.
 now apply mag_round_ZR.
 intros Zr.
@@ -1434,7 +1456,7 @@ right.
 rewrite Zmax_r with (1 := He).
 rewrite round_AW_pos with (1 := Rabs_pos _).
 now apply round_UP_small_pos.
-destruct (round_bounded_large_pos [>> Zrnd Zaway] _ ex He Ex) as [H1 [H2|H2]].
+destruct (round_bounded_large_pos fexp [>> Zrnd Zaway] _ ex He Ex) as [H1 [H2|H2]].
 left.
 apply mag_unique.
 rewrite <- round_AW_abs, Rabs_Rabsolu.
@@ -1445,8 +1467,8 @@ Qed.
 
 Theorem mag_DN :
   forall x,
-  (0 < round Zfloor x)%R ->
-  mag beta (round Zfloor x) = mag beta x :> Z.
+  (0 < round fexp Zfloor x)%R ->
+  mag beta (round fexp Zfloor x) = mag beta x :> Z.
 Proof.
 intros x Hd.
 assert (0 < x)%R.
@@ -1462,8 +1484,8 @@ Qed.
 
 Theorem cexp_DN :
   forall x,
-  (0 < round Zfloor x)%R ->
-  cexp (round Zfloor x) = cexp x.
+  (0 < round fexp Zfloor x)%R ->
+  cexp fexp (round fexp Zfloor x) = cexp fexp x.
 Proof.
 intros x Hd.
 apply (f_equal fexp).
@@ -1472,8 +1494,8 @@ Qed.
 
 Theorem scaled_mantissa_DN :
   forall x,
-  (0 < round Zfloor x)%R ->
-  scaled_mantissa (round Zfloor x) = Z2R (Zfloor (scaled_mantissa x)).
+  (0 < round fexp Zfloor x)%R ->
+  scaled_mantissa fexp (round fexp Zfloor x) = Z2R (Zfloor (scaled_mantissa fexp x)).
 Proof.
 intros x Hd.
 unfold scaled_mantissa.
@@ -1484,8 +1506,8 @@ Qed.
 
 Theorem generic_N_pt_DN_or_UP :
   forall x f,
-  Rnd_N_pt generic_format x f ->
-  f = round Zfloor x \/ f = round Zceil x.
+  Rnd_N_pt (generic_format fexp) x f ->
+  f = round fexp Zfloor x \/ f = round fexp Zceil x.
 Proof.
 intros x f Hxf.
 destruct (Rnd_N_pt_DN_or_UP _ _ _ Hxf).
@@ -1499,27 +1521,25 @@ Qed.
 
 Section not_FTZ.
 
-Class Exp_not_FTZ :=
+Class Exp_not_FTZ (fexp : Z -> Z) :=
   exp_not_FTZ : forall e, (fexp (fexp e + 1) <= fexp e)%Z.
 
-Context { exp_not_FTZ_ : Exp_not_FTZ }.
-
 Theorem subnormal_exponent :
-  forall e x,
+  forall { exp_not_FTZ_ : Exp_not_FTZ fexp } e x,
   (e <= fexp e)%Z ->
-  generic_format x ->
+  generic_format fexp x ->
   x = F2R (Float beta (Ztrunc (x * bpow (- fexp e))) (fexp e)).
 Proof.
-intros e x He Hx.
+intros Hftz e x He Hx.
 pattern x at 2 ; rewrite Hx.
 unfold F2R at 2. simpl.
 rewrite Rmult_assoc, <- bpow_plus.
-assert (H: Z2R (Zpower beta (cexp x + - fexp e)) = bpow (cexp x + - fexp e)).
+assert (H: Z2R (Zpower beta (cexp fexp x + - fexp e)) = bpow (cexp fexp x + - fexp e)).
 apply Z2R_Zpower.
 unfold cexp.
 set (ex := mag beta x).
 generalize (exp_not_FTZ ex).
-generalize (proj2 (proj2 (valid_exp _) He) (fexp ex + 1)%Z).
+generalize (valid_exp3 fexp _ (fexp ex + 1)%Z He).
 omega.
 rewrite <- H.
 rewrite <- Z2R_mult, Ztrunc_Z2R.
@@ -1527,7 +1547,7 @@ unfold F2R. simpl.
 rewrite Z2R_mult.
 rewrite H.
 rewrite Rmult_assoc, <- bpow_plus.
-now ring_simplify (cexp x + - fexp e + fexp e)%Z.
+now ring_simplify (cexp fexp x + - fexp e + fexp e)%Z.
 Qed.
 
 End not_FTZ.
@@ -1539,20 +1559,20 @@ Class Monotone_exp :=
 
 Context { monotone_exp_ : Monotone_exp }.
 
-Global Instance monotone_exp_not_FTZ : Exp_not_FTZ.
+Global Instance monotone_exp_not_FTZ : Exp_not_FTZ fexp.
 Proof.
 intros e.
 destruct (Z_lt_le_dec (fexp e) e) as [He|He].
 apply monotone_exp.
 now apply Zlt_le_succ.
-now apply valid_exp.
+now apply valid_exp2.
 Qed.
 
 Lemma cexp_le_bpow :
   forall (x : R) (e : Z),
   x <> 0%R ->
   (Rabs x < bpow e)%R ->
-  (cexp x <= fexp e)%Z.
+  (cexp fexp x <= fexp e)%Z.
 Proof.
 intros x e Zx Hx.
 apply monotone_exp.
@@ -1562,7 +1582,7 @@ Qed.
 Lemma cexp_ge_bpow :
   forall (x : R) (e : Z),
   (bpow (e - 1) <= Rabs x)%R ->
-  (fexp e <= cexp x)%Z.
+  (fexp e <= cexp fexp x)%Z.
 Proof.
 intros x e Hx.
 apply monotone_exp.
@@ -1575,11 +1595,11 @@ Variable rnd : Valid_rnd.
 
 Theorem mag_round_ge :
   forall x,
-  round rnd x <> 0%R ->
-  (mag beta x <= mag beta (round rnd x))%Z.
+  round fexp rnd x <> 0%R ->
+  (mag beta x <= mag beta (round fexp rnd x))%Z.
 Proof.
 intros x.
-destruct (round_ZR_or_AW rnd x) as [H|H] ; rewrite H ; clear H ; intros Zr.
+destruct (round_ZR_or_AW fexp rnd x) as [H|H] ; rewrite H ; clear H ; intros Zr.
 rewrite mag_round_ZR with (1 := Zr).
 apply Zle_refl.
 apply mag_le_abs.
@@ -1594,8 +1614,8 @@ Qed.
 
 Theorem cexp_round_ge :
   forall x,
-  round rnd x <> 0%R ->
-  (cexp x <= cexp (round rnd x))%Z.
+  round fexp rnd x <> 0%R ->
+  (cexp fexp x <= cexp fexp (round fexp rnd x))%Z.
 Proof.
 intros x Zr.
 unfold cexp.
@@ -1877,16 +1897,16 @@ Qed.
 
 Theorem round_N_pt :
   forall x,
-  Rnd_N_pt generic_format x (round Znearest x).
+  Rnd_N_pt (generic_format fexp) x (round fexp Znearest x).
 Proof.
 intros x.
-set (d := round Zfloor x).
-set (u := round Zceil x).
-set (mx := scaled_mantissa x).
-set (bx := bpow (cexp x)).
+set (d := round fexp Zfloor x).
+set (u := round fexp Zceil x).
+set (mx := scaled_mantissa fexp x).
+set (bx := bpow (cexp fexp x)).
 (* . *)
-assert (H: (Rabs (round Znearest x - x) <= Rmin (x - d) (u - x))%R).
-pattern x at -1 ; rewrite <- scaled_mantissa_mult_bpow.
+assert (H: (Rabs (round fexp Znearest x - x) <= Rmin (x - d) (u - x))%R).
+pattern x at -1 ; rewrite <- (scaled_mantissa_mult_bpow fexp).
 unfold d, u, round, F2R. simpl.
 fold mx bx.
 rewrite <- 3!Rmult_minus_distr_r.
@@ -1933,7 +1953,6 @@ apply Zceil_ub.
 (* . *)
 apply Rnd_DN_UP_pt_N with d u.
 apply generic_format_round.
-auto with typeclass_instances.
 now apply round_DN_pt.
 now apply round_UP_pt.
 apply Rle_trans with (1 := H).
@@ -1942,27 +1961,36 @@ apply Rle_trans with (1 := H).
 apply Rmin_r.
 Qed.
 
+End Znearest.
+
+End generic_fmt_round.
+
+Section Znearest2.
+
+Variable fexp : Z -> Z.
+Variable choice : Z -> bool.
+
 Theorem round_N_middle :
   forall x,
-  (x - round Zfloor x = round Zceil x - x)%R ->
-  round Znearest x = if choice (Zfloor (scaled_mantissa x)) then round Zceil x else round Zfloor x.
+  (x - round fexp Zfloor x = round fexp Zceil x - x)%R ->
+  round fexp (Znearest choice) x = if choice (Zfloor (scaled_mantissa fexp x)) then round fexp Zceil x else round fexp Zfloor x.
 Proof.
 intros x.
-pattern x at 1 4 ; rewrite <- scaled_mantissa_mult_bpow.
+pattern x at 1 4 ; rewrite <- (scaled_mantissa_mult_bpow fexp).
 unfold round, Znearest, F2R. simpl.
-destruct (Req_dec (Z2R (Zfloor (scaled_mantissa x))) (scaled_mantissa x)) as [Fx|Fx].
+destruct (Req_dec (Z2R (Zfloor (scaled_mantissa fexp x))) (scaled_mantissa fexp x)) as [Fx|Fx].
 (* *)
 intros _.
 rewrite <- Fx.
 rewrite Zceil_Z2R, Zfloor_Z2R.
-set (m := Zfloor (scaled_mantissa x)).
+set (m := Zfloor (scaled_mantissa fexp x)).
 now case (Rcompare (Z2R m - Z2R m) (/ 2)) ; case (choice m).
 (* *)
 intros H.
 rewrite Rcompare_floor_ceil_mid with (1 := Fx).
 rewrite Rcompare_Eq.
 now case choice.
-apply Rmult_eq_reg_r with (bpow (cexp x)).
+apply Rmult_eq_reg_r with (bpow (cexp fexp x)).
 now rewrite 2!Rmult_minus_distr_r.
 apply Rgt_not_eq.
 apply bpow_gt_0.
@@ -1973,7 +2001,7 @@ Lemma round_N_really_small_pos :
   forall ex,
   (Raux.bpow beta (ex - 1) <= x < Raux.bpow beta ex)%R ->
   (ex < fexp ex)%Z ->
-  (round Znearest x = 0)%R.
+  (round fexp (Znearest choice) x = 0)%R.
 Proof.
 intros x ex Hex Hf.
 unfold round, F2R, scaled_mantissa, cexp; simpl.
@@ -2011,9 +2039,7 @@ apply Rle_trans with (bpow (fexp (mag beta x) - 1)).
   now apply Zle_bool_imp_le.
 Qed.
 
-End Znearest.
-
-Section rndNA.
+End Znearest2.
 
 (*
 Canonical Structure valid_rnd_NA :=
@@ -2023,17 +2049,17 @@ Global Instance valid_rnd_NA : Valid_rnd (Znearest (Zle_bool 0)) := valid_rnd_N 
 *)
 
 Theorem round_NA_pt :
-  forall x,
-  Rnd_NA_pt generic_format x (round (Znearest (Zle_bool 0)) x).
+  forall (fexp : Valid_exp) x,
+  Rnd_NA_pt (generic_format fexp) x (round fexp (Znearest (Zle_bool 0)) x).
 Proof.
-intros x.
-generalize (round_N_pt (Zle_bool 0) x).
-set (f := round (Znearest (Zle_bool 0)) x).
+intros fexp x.
+generalize (round_N_pt fexp (Zle_bool 0) x).
+set (f := round fexp (Znearest (Zle_bool 0)) x).
 intros Rxf.
-destruct (Req_dec (x - round Zfloor x) (round Zceil x - x)) as [Hm|Hm].
+destruct (Req_dec (x - round fexp Zfloor x) (round fexp Zceil x - x)) as [Hm|Hm].
 (* *)
 apply Rnd_NA_N_pt.
-exact generic_format_0.
+apply generic_format_0.
 exact Rxf.
 destruct (Rle_or_lt 0 x) as [Hx|Hx].
 (* . *)
@@ -2042,12 +2068,12 @@ rewrite Rabs_pos_eq.
 unfold f.
 rewrite round_N_middle with (1 := Hm).
 rewrite Zle_bool_true.
-apply (round_UP_pt x).
+apply round_UP_pt.
 apply Zfloor_lub.
 apply Rmult_le_pos with (1 := Hx).
 apply bpow_ge_0.
 apply Rnd_N_pt_pos with (2 := Hx) (3 := Rxf).
-exact generic_format_0.
+apply generic_format_0.
 (* . *)
 rewrite Rabs_left with (1 := Hx).
 rewrite Rabs_left1.
@@ -2055,16 +2081,16 @@ apply Ropp_le_contravar.
 unfold f.
 rewrite round_N_middle with (1 := Hm).
 rewrite Zle_bool_false.
-apply (round_DN_pt x).
+apply round_DN_pt.
 apply lt_Z2R.
-apply Rle_lt_trans with (scaled_mantissa x).
+apply Rle_lt_trans with (scaled_mantissa fexp x).
 apply Zfloor_lb.
 simpl.
-rewrite <- (Rmult_0_l (bpow (- cexp x))).
+rewrite <- (Rmult_0_l (bpow (- cexp fexp x))).
 apply Rmult_lt_compat_r with (2 := Hx).
 apply bpow_gt_0.
 apply Rnd_N_pt_neg with (3 := Rxf).
-exact generic_format_0.
+apply generic_format_0.
 now apply Rlt_le.
 (* *)
 split.
@@ -2075,10 +2101,6 @@ apply Rle_refl.
 apply round_DN_pt.
 apply round_UP_pt.
 Qed.
-
-End rndNA.
-
-Section rndN_opp.
 
 Theorem Znearest_opp :
   forall choice x,
@@ -2108,11 +2130,10 @@ apply Rplus_comm.
 Qed.
 
 Theorem round_N_opp :
-  forall choice,
-  forall x,
-  round (Znearest choice) (-x) = (- round (Znearest (fun t => negb (choice (- (t + 1))%Z))) x)%R.
+  forall fexp choice x,
+  round fexp (Znearest choice) (-x) = (- round fexp (Znearest (fun t => negb (choice (- (t + 1))%Z))) x)%R.
 Proof.
-intros choice x.
+intros fexp choice x.
 unfold round, F2R. simpl.
 rewrite cexp_opp.
 rewrite scaled_mantissa_opp.
@@ -2121,17 +2142,12 @@ rewrite Z2R_opp.
 now rewrite Ropp_mult_distr_l_reverse.
 Qed.
 
-End rndN_opp.
-
 End Format.
 
 (** Inclusion of a format into an extended format *)
-Section Inclusion.
+Section Inclusion0.
 
 Variables fexp1 fexp2 : Z -> Z.
-
-Context { valid_exp1 : Valid_exp fexp1 }.
-Context { valid_exp2 : Valid_exp fexp2 }.
 
 Theorem generic_inclusion_mag :
   forall x,
@@ -2167,6 +2183,27 @@ now apply mag_gt_bpow.
 now apply mag_le_bpow.
 Qed.
 
+Theorem generic_inclusion_ge :
+  forall e1,
+  ( forall e, (e1 < e)%Z -> (fexp2 e <= fexp1 e)%Z ) ->
+  forall x,
+  (bpow e1 <= Rabs x)%R ->
+  generic_format fexp1 x ->
+  generic_format fexp2 x.
+Proof.
+intros e1 He x Hx.
+apply generic_inclusion_mag.
+intros Zx.
+apply He.
+now apply mag_gt_bpow.
+Qed.
+
+End Inclusion0.
+
+Section Inclusion.
+
+Variable fexp1 fexp2 : Valid_exp.
+
 Theorem generic_inclusion :
   forall e,
   (fexp2 e <= fexp1 e)%Z ->
@@ -2174,16 +2211,16 @@ Theorem generic_inclusion :
   (bpow (e - 1) <= Rabs x <= bpow e)%R ->
   generic_format fexp1 x ->
   generic_format fexp2 x.
-Proof with auto with typeclass_instances.
+Proof.
 intros e He x (Hx1,[Hx2|Hx2]).
 apply generic_inclusion_mag.
 now rewrite mag_unique with (1 := conj Hx1 Hx2).
 intros Fx.
 apply generic_format_abs_inv.
 rewrite Hx2.
-apply generic_format_bpow'...
+apply generic_format_bpow'.
 apply Zle_trans with (1 := He).
-apply generic_format_bpow_inv...
+apply generic_format_bpow_inv.
 rewrite <- Hx2.
 now apply generic_format_abs.
 Qed.
@@ -2241,28 +2278,13 @@ apply Zle_pred.
 apply Rle_refl.
 Qed.
 
-Theorem generic_inclusion_ge :
-  forall e1,
-  ( forall e, (e1 < e)%Z -> (fexp2 e <= fexp1 e)%Z ) ->
-  forall x,
-  (bpow e1 <= Rabs x)%R ->
-  generic_format fexp1 x ->
-  generic_format fexp2 x.
-Proof.
-intros e1 He x Hx.
-apply generic_inclusion_mag.
-intros Zx.
-apply He.
-now apply mag_gt_bpow.
-Qed.
-
 Variable rnd : Valid_rnd.
 
 Theorem generic_round_generic :
   forall x,
   generic_format fexp1 x ->
   generic_format fexp1 (round fexp2 rnd x).
-Proof with auto with typeclass_instances.
+Proof.
 intros x Gx.
 apply generic_format_abs_inv.
 apply generic_format_abs in Gx.
@@ -2282,19 +2304,21 @@ destruct (round_bounded_small_pos fexp2 rnd x ex He Ex) as [Hr|Hr].
 rewrite Hr.
 apply generic_format_0.
 rewrite Hr.
-apply generic_format_bpow'...
+apply generic_format_bpow'.
 apply Zlt_le_weak.
-apply valid_exp_large with ex...
+now apply valid_exp_large with ex.
 (* - x large for fexp2 *)
 destruct (Zle_or_lt (cexp fexp2 x) (cexp fexp1 x)) as [He''|He''].
 (* - - round fexp2 x is representable for fexp1 *)
-rewrite round_generic...
+rewrite round_generic.
+apply Gx.
 rewrite Gx.
 apply generic_format_F2R.
 fold (round fexp1 Ztrunc x).
 intros Zx.
 unfold cexp at 1.
-rewrite mag_round_ZR...
+rewrite mag_round_ZR.
+exact He''.
 contradict Zx.
 apply F2R_eq_0_reg with (1 := Zx).
 (* - - round fexp2 x has too many digits for fexp1 *)
@@ -2307,7 +2331,7 @@ rewrite mag_unique_pos with (1 := conj Hr1 Hr2).
 rewrite <- mag_unique_pos with (1 := Ex).
 now apply Zlt_le_weak.
 rewrite Hr2.
-apply generic_format_bpow'...
+apply generic_format_bpow'.
 now apply Zlt_le_weak.
 (* x = 0 *)
 rewrite <- Hx, round_0.

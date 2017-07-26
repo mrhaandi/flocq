@@ -25,20 +25,19 @@ Section format_REM_aux.
 Variable beta : radix.
 Notation bpow e := (bpow beta e).
 
-Variable fexp : Z -> Z.
-Context { valid_exp : Valid_exp fexp }.
+Variable fexp : Valid_exp.
 Context { monotone_exp : Monotone_exp fexp }.
 
 Variable rnd : Valid_rnd.
 
-Notation format := (generic_format beta fexp).
+Notation format := (generic_format beta (Generic_fmt.fexp fexp)).
 
 Lemma format_REM_aux:
  forall (x y : R),
   (format x) -> (format y) -> (0 <= x)%R -> (0 < y)%R ->
     ~ (rnd (x/y)%R = 1%Z /\ (0 < x/y < /2)%R) ->
     format (x- Z2R (rnd (x/y)%R)*y).
-Proof with auto with typeclass_instances.
+Proof.
 intros x y Fx Fy Hx Hy rnd_small.
 pose (n:=rnd (x / y)%R).
 assert (Hn:(Z2R n = round beta (FIX_exp 0) rnd (x/y))%R).
@@ -47,8 +46,8 @@ now rewrite 2!Rmult_1_r.
 assert (H:(0 <= n)%Z).
 apply le_Z2R; rewrite Hn; simpl.
 apply Rle_trans with (round beta (FIX_exp 0) rnd 0).
-right; apply sym_eq, round_0...
-apply round_le...
+right; apply sym_eq, round_0.
+apply round_le.
 apply Fourier_util.Rle_mult_inv_pos; assumption.
 case (Zle_lt_or_eq 0 n); try exact H.
 clear H; intros H.
@@ -92,7 +91,8 @@ rewrite <- Rabs_mult.
 replace (/y * (x - Z2R n *y))%R with (-(Z2R n - x/y))%R.
 rewrite Rabs_Ropp.
 rewrite Hn.
-apply Rle_trans with (1:= error_le_ulp beta (FIX_exp 0) _ _).
+apply Rle_trans with (1:= error_le_ulp beta (FIX_exp_valid 0) _ _).
+simpl.
 rewrite ulp_FIX.
 simpl; apply Rle_refl.
 field.
@@ -101,7 +101,7 @@ now apply Rgt_not_eq.
 absurd (1 < n)%Z; try easy.
 apply Zle_not_lt.
 apply le_Z2R; simpl; rewrite Hn.
-apply round_le_generic...
+apply round_le_generic.
 apply generic_format_FIX.
 exists (Float beta 1 0); try easy.
 unfold F2R; simpl; ring.
@@ -120,13 +120,14 @@ rewrite Rmult_1_l.
 case Hx; intros Hx'.
 assert (J:(0 < x/y)%R).
 apply Fourier_util.Rlt_mult_inv_pos; assumption.
-apply sterbenz...
+apply sterbenz ; try easy.
 assert (H0:(Rabs (1  - x/y) < 1)%R).
 replace 1%R with (Z2R 1) at 1 by reflexivity.
 rewrite Hn', Hn.
 apply Rlt_le_trans with (ulp beta (FIX_exp 0) (round beta (FIX_exp 0) rnd (x / y)))%R.
-apply error_lt_ulp_round...
-now apply Rgt_not_eq, Rdiv_lt_0_compat.
+apply error_lt_ulp_round.
+auto with typeclass_instances.
+now apply Rgt_not_eq.
 rewrite ulp_FIX.
 simpl; right; ring.
 apply Rabs_lt_inv in H0.
@@ -153,13 +154,13 @@ now rewrite Rmult_0_l, Rminus_0_r.
 Qed.
 
 End format_REM_aux.
+
 Section format_REM.
 
 Variable beta : radix.
 Notation bpow e := (bpow beta e).
 
-Variable fexp : Z -> Z.
-Context { valid_exp : Valid_exp fexp }.
+Variable fexp : Valid_exp.
 Context { monotone_exp : Monotone_exp fexp }.
 
 Notation format := (generic_format beta fexp).
@@ -169,7 +170,7 @@ Theorem format_REM :
    ~ (Zabs (rnd (x/y)%R) = 1%Z /\ (Rabs (x/y) < /2)%R) ->
    (format x) -> (format y) ->
     format (x-Z2R (rnd (x/y)%R)*y).
-Proof with auto with typeclass_instances.
+Proof.
 (* assume 0 < y *)
 assert (H: forall (rnd : Valid_rnd) (x y : R),
      ~ (Zabs (rnd (x/y)%R) = 1%Z /\ (Rabs (x/y) < /2)%R) ->
@@ -186,7 +187,7 @@ replace (x-(Z2R (rnd (x/y)))*y)%R with
    (-((-x)-(Z2R ((Zrnd_opp rnd)
             ((-x)/y)))*y))%R.
 apply generic_format_opp.
-apply format_REM_aux; try easy...
+apply format_REM_aux; try easy.
 now apply generic_format_opp.
 apply Ropp_le_cancel; rewrite Ropp_0, Ropp_involutive; now left.
 simpl Zrnd.
@@ -210,7 +211,7 @@ now apply H.
 now rewrite <- Hy, Rmult_0_r, Rminus_0_r.
 replace (Z2R (rnd (x/y))*y)%R with
   (Z2R ((Zrnd_opp rnd) ((x/(-y))))*(-y))%R.
-apply H; try easy...
+apply H; try easy.
 simpl Zrnd.
 intros (K1,K2); apply Hrnd; split.
 unfold Zrnd_opp in K1.
@@ -232,9 +233,9 @@ Theorem format_REM_ZR:
   forall (x y : R),
   (format x) -> (format y) ->
     format (x-Z2R (Ztrunc (x/y))*y).
-Proof with auto with typeclass_instances.
+Proof.
 intros x y Fx Fy.
-apply format_REM; try easy...
+apply format_REM; try easy.
 simpl Zrnd.
 intros (K1,K2).
 assert (forall z, (0 <= z < /2)%R -> Ztrunc z = 0)%Z.
@@ -265,9 +266,9 @@ Theorem format_REM_N: forall choice,
   forall (x y : R),
   (format x) -> (format y) ->
     format (x- (Z2R (Znearest choice (x/y)))*y).
-Proof with auto with typeclass_instances.
+Proof.
 intros choice x y Fx Fy.
-apply format_REM; try easy...
+apply format_REM; try easy.
 simpl Zrnd.
 intros (K1,K2).
 absurd (Znearest choice (x / y) = 0)%Z.

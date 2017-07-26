@@ -29,9 +29,7 @@ Variable beta : radix.
 
 Notation bpow e := (bpow beta e).
 
-Variable fexp : Z -> Z.
-
-Context { valid_exp : Valid_exp fexp }.
+Variable fexp : Valid_exp.
 
 Notation format := (generic_format beta fexp).
 Notation canonical := (canonical beta fexp).
@@ -99,13 +97,13 @@ Qed.
 
 Class Exists_NE :=
   exists_NE : Zeven beta = false \/ forall e,
-  ((fexp e < e)%Z -> (fexp (e + 1) < e)%Z) /\ ((e <= fexp e)%Z -> fexp (fexp e + 1) = fexp e).
+  (fexp e < e -> fexp (e + 1) < e)%Z /\ (e <= fexp e -> fexp (fexp e + 1) = fexp e)%Z.
 
 Context { exists_NE_ : Exists_NE }.
 
 Theorem DN_UP_parity_generic_pos :
   DN_UP_parity_pos_prop.
-Proof with auto with typeclass_instances.
+Proof.
 intros x xd xu H0x Hfx Hd Hu Hxd Hxu.
 destruct (mag beta x) as (ex, Hexa).
 specialize (Hexa (Rgt_not_eq _ _ H0x)).
@@ -118,26 +116,26 @@ apply F2R_eq_0_reg with beta (Fexp xd).
 change (F2R xd = R0).
 rewrite Hxd.
 apply round_DN_small_pos with (1 := Hex) (2 := Hxe).
-assert (Hu3 : xu = Float beta (1 * Zpower beta (fexp ex - fexp (fexp ex + 1))) (fexp (fexp ex + 1))).
+assert (Hu3 : xu = Float beta (1 * Zpower beta (fexp ex - fexp (fexp ex + 1)%Z)) (fexp (fexp ex + 1)%Z)).
 apply canonical_unicity with (1 := Hu).
 apply (f_equal fexp).
 rewrite <- F2R_change_exp.
 now rewrite F2R_bpow, mag_bpow.
-now apply valid_exp.
+now apply valid_exp2.
 rewrite <- F2R_change_exp.
 rewrite F2R_bpow.
 apply sym_eq.
 rewrite Hxu.
 apply sym_eq.
 apply round_UP_small_pos with (1 := Hex) (2 := Hxe).
-now apply valid_exp.
+now apply valid_exp2.
 rewrite Hd3, Hu3.
 rewrite Zmult_1_l.
 simpl.
 destruct exists_NE_ as [H|H].
 apply Zeven_Zpower_odd with (2 := H).
 apply Zle_minus_le_0.
-now apply valid_exp.
+now apply valid_exp2.
 rewrite (proj2 (H ex)).
 now rewrite Zminus_diag.
 exact Hxe.
@@ -157,7 +155,7 @@ rewrite Hxd.
 apply (round_DN_pt beta fexp x).
 apply generic_format_0.
 now apply Rlt_le.
-assert (Hxe2 : (fexp (ex + 1) <= ex)%Z) by now apply valid_exp.
+assert (Hxe2 : (fexp (ex + 1) <= ex)%Z) by now apply valid_exp1.
 assert (Hud: (F2R xu = F2R xd + ulp beta fexp x)%R).
 rewrite Hxu, Hxd.
 now apply round_UP_DN_ulp.
@@ -165,14 +163,14 @@ destruct (total_order_T (bpow ex) (F2R xu)) as [[Hu2|Hu2]|Hu2].
 (* - xu > bpow ex  *)
 elim (Rlt_not_le _ _ Hu2).
 rewrite Hxu.
-apply round_bounded_large_pos...
+now apply round_bounded_large_pos.
 (* - xu = bpow ex *)
-assert (Hu3: xu = Float beta (1 * Zpower beta (ex - fexp (ex + 1))) (fexp (ex + 1))).
+assert (Hu3: xu = Float beta (1 * Zpower beta (ex - fexp (ex + 1)%Z)) (fexp (ex + 1)%Z)).
 apply canonical_unicity with (1 := Hu).
 apply (f_equal fexp).
 rewrite <- F2R_change_exp.
 now rewrite F2R_bpow, mag_bpow.
-now apply valid_exp.
+now apply valid_exp1.
 rewrite <- Hu2.
 apply sym_eq.
 rewrite <- F2R_change_exp.
@@ -337,7 +335,7 @@ Lemma round_NE_pt_pos :
   forall x,
   (0 < x)%R ->
   Rnd_NE_pt x (round beta fexp ZnearestE x).
-Proof with auto with typeclass_instances.
+Proof.
 intros x Hx.
 split.
 now apply round_N_pt.
@@ -349,11 +347,11 @@ destruct (Req_dec (mx - Z2R (Zfloor mx)) (/2)) as [Hm|Hm].
 left.
 exists (Float beta (Ztrunc (scaled_mantissa beta fexp xr)) (cexp beta fexp xr)).
 split.
-apply round_N_pt...
+apply round_N_pt.
 split.
 unfold Generic_fmt.canonical. simpl.
 apply f_equal.
-apply round_N_pt...
+apply round_N_pt.
 simpl.
 unfold xr, round, Znearest.
 fold mx.
@@ -370,9 +368,9 @@ rewrite Rmult_0_l.
 change 0%R with (Z2R 0).
 now rewrite (Ztrunc_Z2R 0).
 rewrite <- (round_0 beta fexp [>> Zrnd Zfloor]).
-apply round_le...
+apply round_le.
 now apply Rlt_le.
-rewrite scaled_mantissa_DN...
+rewrite scaled_mantissa_DN with (1 := Hr).
 now rewrite Ztrunc_Z2R.
 (* . odd floor *)
 change (Zeven (Ztrunc (scaled_mantissa beta fexp (round beta fexp Zceil x))) = true).
@@ -436,7 +434,7 @@ pattern (fexp ex) ; rewrite <- cexp_fexp_pos with (1 := Hex).
 now apply sym_eq.
 apply Rgt_not_eq.
 apply bpow_gt_0.
-generalize (proj1 (valid_exp ex) He).
+generalize (valid_exp1 fexp ex He).
 omega.
 (* .. small pos *)
 assert (Zeven (Zfloor mx) = true). 2: now rewrite H in Hmx.
@@ -449,7 +447,7 @@ intros g Hg.
 destruct (Req_dec x g) as [Hxg|Hxg].
 rewrite <- Hxg.
 apply sym_eq.
-apply round_generic...
+apply round_generic.
 rewrite Hxg.
 apply Hg.
 set (d := round beta fexp Zfloor x).
@@ -503,7 +501,7 @@ Qed.
 Lemma round_NE_abs:
   forall x : R,
   round beta fexp ZnearestE (Rabs x) = Rabs (round beta fexp ZnearestE x).
-Proof with auto with typeclass_instances.
+Proof.
 intros x.
 apply sym_eq.
 unfold Rabs at 2.
@@ -512,11 +510,11 @@ destruct (Rcase_abs x) as [Hx|Hx].
 rewrite round_NE_opp.
 apply Rabs_left1.
 rewrite <- H0.
-apply round_le...
+apply round_le.
 now apply Rlt_le.
 apply Rabs_pos_eq.
 rewrite <- H0.
-apply round_le...
+apply round_le.
 now apply Rge_le.
 Qed.
 

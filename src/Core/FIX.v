@@ -36,16 +36,32 @@ Definition FIX_exp (e : Z) := emin.
 
 (** Properties of the FIX format *)
 
-Global Instance FIX_exp_valid : Valid_exp FIX_exp.
+Lemma FIX_exp_valid1 :
+  forall k : Z, (FIX_exp k < k)%Z ->
+  (FIX_exp (k + 1) <= k)%Z.
 Proof.
-intros k.
-unfold FIX_exp.
-split ; intros H.
+intros k Hk.
 now apply Zlt_le_weak.
-split.
-apply Zle_refl.
-now intros _ _.
 Qed.
+
+Lemma FIX_exp_valid2 :
+  forall k : Z, (k <= FIX_exp k)%Z ->
+  (FIX_exp (FIX_exp k + 1) <= FIX_exp k)%Z.
+Proof.
+intros k Hk.
+apply Zle_refl.
+Qed.
+
+Lemma FIX_exp_valid3 :
+  forall k l : Z,
+  (k <= FIX_exp k)%Z -> (l <= FIX_exp k)%Z ->
+  FIX_exp l = FIX_exp k.
+Proof.
+now intros k l Hk Hl.
+Qed.
+
+Canonical Structure FIX_exp_valid :=
+  Build_Valid_exp FIX_exp FIX_exp_valid1 FIX_exp_valid2 FIX_exp_valid3.
 
 Theorem generic_format_FIX :
   forall x, FIX_format x -> generic_format beta FIX_exp x.
@@ -66,14 +82,15 @@ Qed.
 Theorem FIX_format_satisfies_any :
   satisfies_any FIX_format.
 Proof.
-refine (satisfies_any_eq _ _ _ (generic_format_satisfies_any beta FIX_exp)).
+eapply satisfies_any_eq.
 intros x.
 split.
 apply FIX_format_generic.
 apply generic_format_FIX.
+apply generic_format_satisfies_any.
 Qed.
 
-Global Instance FIX_exp_monotone : Monotone_exp FIX_exp.
+Global Instance FIX_exp_monotone : Monotone_exp FIX_exp_valid.
 Proof.
 intros ex ey H.
 apply Zle_refl.

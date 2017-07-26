@@ -29,7 +29,6 @@ Notation bpow e := (bpow beta e).
 Section Fcalc_round_fexp.
 
 Variable fexp : Z -> Z.
-Context { valid_exp : Valid_exp fexp }.
 Notation format := (generic_format beta fexp).
 
 (** Relates location and rounding. *)
@@ -265,12 +264,12 @@ Theorem inbetween_int_ZR :
   forall x m l,
   inbetween_int m x l ->
   Ztrunc x = cond_incr (round_ZR (Zlt_bool m 0) l) m.
-Proof with auto with typeclass_instances.
+Proof.
 intros x m l Hl.
 inversion_clear Hl as [Hx|l' Hx Hl'].
 (* Exact *)
 rewrite Hx.
-rewrite Zrnd_Z2R...
+now rewrite Zrnd_Z2R.
 (* not Exact *)
 unfold Ztrunc.
 assert (Hm: Zfloor x = m).
@@ -357,12 +356,12 @@ Theorem inbetween_int_N :
   forall choice x m l,
   inbetween_int m x l ->
   Znearest choice x = cond_incr (round_N (choice m) l) m.
-Proof with auto with typeclass_instances.
+Proof.
 intros choice x m l Hl.
 inversion_clear Hl as [Hx|l' Hx Hl'].
 (* Exact *)
 rewrite Hx.
-rewrite Zrnd_Z2R...
+now rewrite Zrnd_Z2R.
 (* not Exact *)
 unfold Znearest.
 assert (Hm: Zfloor x = m).
@@ -386,7 +385,7 @@ Theorem inbetween_int_N_sign :
   forall choice x m l,
   inbetween_int m (Rabs x) l ->
   Znearest choice x = cond_Zopp (Rlt_bool x 0) (cond_incr (round_N (if Rlt_bool x 0 then negb (choice (-(m + 1))%Z) else choice m) l) m).
-Proof with auto with typeclass_instances.
+Proof.
 intros choice x m l Hl.
 simpl.
 unfold Rabs in Hl.
@@ -399,7 +398,7 @@ rewrite Znearest_opp.
 apply f_equal.
 inversion_clear Hl as [Hx|l' Hx Hl'].
 rewrite Hx.
-apply Zrnd_Z2R...
+apply Zrnd_Z2R.
 assert (Hm: Zfloor (-x) = m).
 apply Zfloor_imp.
 exact (conj (Rlt_le _ _ (proj1 Hx)) (proj2 Hx)).
@@ -423,7 +422,7 @@ rewrite Rlt_bool_false with (1 := Zx).
 simpl.
 inversion_clear Hl as [Hx|l' Hx Hl'].
 rewrite Hx.
-apply Zrnd_Z2R...
+apply Zrnd_Z2R.
 assert (Hm: Zfloor x = m).
 apply Zfloor_imp.
 exact (conj (Rlt_le _ _ (proj1 Hx)) (proj2 Hx)).
@@ -633,7 +632,7 @@ Theorem truncate_correct_format :
   x = F2R (Float beta m' e') /\ e' = cexp beta fexp x.
 Proof.
 intros m e Hm x Fx He.
-assert (Hc: cexp beta fexp x = fexp (Zdigits beta m + e)).
+assert (Hc: cexp beta fexp x = fexp (Zdigits beta m + e)%Z).
 unfold cexp, x.
 now rewrite mag_F2R_Zdigits.
 unfold truncate.
@@ -670,6 +669,15 @@ apply refl_equal.
 unfold k in Hk.
 omega.
 Qed.
+
+End Fcalc_round_fexp.
+
+Section valid_exp.
+
+Variable fexp : Valid_exp.
+
+Notation format := (generic_format beta (Generic_fmt.fexp fexp)).
+Notation truncate := (truncate (Generic_fmt.fexp fexp)).
 
 Theorem truncate_correct_partial :
   forall x m e l,
@@ -716,7 +724,7 @@ ring_simplify.
 rewrite <- Hm'.
 simpl.
 apply sym_eq.
-apply valid_exp.
+apply valid_exp3.
 exact H2.
 apply Zle_trans with e.
 eapply bpow_lt_bpow.
@@ -751,7 +759,7 @@ Theorem truncate_correct :
 Proof.
 intros x m e l [Hx|Hx] H1 H2.
 (* 0 < x *)
-destruct (Zle_or_lt e (fexp (Zdigits beta m + e))) as [H3|H3].
+destruct (Zle_or_lt e (fexp (Zdigits beta m + e)%Z)) as [H3|H3].
 (* . enough digits *)
 generalize (truncate_correct_partial x m e l Hx H1 H3).
 destruct (truncate (m, e, l)) as ((m', e'), l').
@@ -765,7 +773,7 @@ elim (Zlt_irrefl e).
 now apply Zle_lt_trans with (1 := H2).
 rewrite H2 in H1 |- *.
 unfold truncate.
-generalize (Zlt_cases 0 (fexp (Zdigits beta m + e) - e)).
+generalize (Zlt_cases 0 (fexp (Zdigits beta m + e)%Z - e)).
 case Zlt_bool.
 intros H.
 apply False_ind.
@@ -1032,7 +1040,7 @@ Definition round_sign_NA_correct :=
 Definition round_trunc_sign_NA_correct :=
   round_trunc_sign_any_correct _ (fun s m l => cond_incr (round_N true l) m) inbetween_int_NA_sign.
 
-End Fcalc_round_fexp.
+End valid_exp.
 
 (** Specialization of truncate for FIX formats. *)
 

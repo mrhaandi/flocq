@@ -25,7 +25,7 @@ Section Fprop_divsqrt_error.
 Variable beta : radix.
 Notation bpow e := (bpow beta e).
 
-Variable prec : Z.
+Variable prec : Prec_gt_0.
 
 Theorem generic_format_plus_prec :
   forall fexp, (forall e, (fexp e <= e - prec)%Z) ->
@@ -53,10 +53,8 @@ rewrite <- Fexp_Fplus, Hz.
 apply Zle_refl.
 Qed.
 
-Context { prec_gt_0_ : Prec_gt_0 prec }.
-
-Notation format := (generic_format beta (FLX_exp prec)).
-Notation cexp := (cexp beta (FLX_exp prec)).
+Notation format := (generic_format beta (FLX_exp (FLX.prec prec))).
+Notation cexp := (cexp beta (FLX_exp (FLX.prec prec))).
 
 Variable choice : Z -> bool.
 
@@ -85,7 +83,7 @@ unfold Rminus; apply generic_format_plus_prec with fx (Fopp beta (Fmult beta fr 
 intros e; apply Zle_refl.
 now rewrite F2R_opp, F2R_mult, <- Hr1, <- Hy1.
 (* *)
-destruct (relative_error_FLX_ex beta prec (prec_gt_0 prec) rnd (x / y)%R) as (eps,(Heps1,Heps2)).
+destruct (relative_error_FLX_ex beta prec rnd (x / y)%R) as (eps,(Heps1,Heps2)).
 rewrite Heps2.
 rewrite <- Rabs_Ropp.
 replace (-(x + - (x / y * (1 + eps) * y)))%R with (x * eps)%R by now field.
@@ -171,7 +169,7 @@ unfold Rsqr; now rewrite F2R_opp,F2R_mult, <- Hr1.
 apply Rle_lt_trans with x.
 apply Rabs_minus_le.
 apply Rle_0_sqr.
-destruct (relative_error_N_FLX_ex beta prec (prec_gt_0 prec) choice (sqrt x)) as (eps,(Heps1,Heps2)).
+destruct (relative_error_N_FLX_ex beta prec choice (sqrt x)) as (eps,(Heps1,Heps2)).
 rewrite Heps2.
 rewrite Rsqr_mult, Rsqr_sqrt, Rmult_comm. 2: now apply Rlt_le.
 apply Rmult_le_compat_r.
@@ -280,7 +278,7 @@ apply Rle_not_lt.
 rewrite <- Hr1.
 apply abs_round_ge_generic...
 apply generic_format_bpow.
-unfold FLX_exp; omega.
+clear -Hp1; simpl; unfold FLX_exp; omega.
 apply Es.
 apply Rlt_le_trans with (1:=H).
 apply bpow_le.

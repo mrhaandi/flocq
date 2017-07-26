@@ -27,9 +27,11 @@ Variable beta : radix.
 
 Notation bpow e := (bpow beta e).
 
-Variable emin prec : Z.
+Variable emin : Z.
 
-Context { prec_gt_0_ : Prec_gt_0 prec }.
+Section prec.
+
+Variable prec : Z.
 
 Inductive FLT_format (x : R) : Prop :=
   FLT_spec (f : float beta) :
@@ -39,20 +41,56 @@ Inductive FLT_format (x : R) : Prop :=
 Definition FLT_exp e := Zmax (e - prec) emin.
 
 (** Properties of the FLT format *)
-Global Instance FLT_exp_valid : Valid_exp FLT_exp.
+
+Lemma FLT_exp_valid1 :
+  forall k : Z, (FLT_exp k < k)%Z ->
+  (FLT_exp (k + 1) <= k)%Z.
+Proof.
+intros k.
+unfold FLT_exp.
+zify ; omega.
+Qed.
+
+End prec.
+
+Section Prec_gt_0.
+
+Variable prec : Prec_gt_0.
+
+Local Notation FLT_exp' := FLT_exp (only parsing).
+Local Notation FLT_format' := FLT_format (only parsing).
+Notation FLT_exp := (FLT_exp prec).
+Notation FLT_format := (FLT_format prec).
+
+Lemma FLT_exp_valid2 :
+  forall k : Z, (k <= FLT_exp k)%Z ->
+  (FLT_exp (FLT_exp k + 1) <= FLT_exp k)%Z.
 Proof.
 intros k.
 unfold FLT_exp.
 generalize (prec_gt_0 prec).
-repeat split ;
-  intros ; zify ; omega.
+zify ; omega.
 Qed.
 
-Theorem generic_format_FLT :
-  forall x, FLT_format x -> generic_format beta FLT_exp x.
+Lemma FLT_exp_valid3 :
+  forall k l : Z,
+  (k <= FLT_exp k)%Z -> (l <= FLT_exp k)%Z ->
+  FLT_exp l = FLT_exp k.
 Proof.
-clear prec_gt_0_.
-intros x [[mx ex] H1 H2 H3].
+intros k l.
+unfold FLT_exp.
+generalize (prec_gt_0 prec).
+zify ; omega.
+Qed.
+
+Canonical Structure FLT_exp_valid :=
+  Build_Valid_exp FLT_exp (FLT_exp_valid1 prec) FLT_exp_valid2 FLT_exp_valid3.
+
+Theorem generic_format_FLT :
+  forall prec x, FLT_format' prec x -> generic_format beta (FLT_exp' prec) x.
+Proof.
+clear prec.
+intros prec x [[mx ex] H1 H2 H3].
 simpl in H2, H3.
 rewrite H1.
 apply generic_format_F2R.
@@ -76,7 +114,7 @@ intros Hx.
 rewrite Hx.
 eexists ; repeat split ; simpl.
 apply lt_Z2R.
-rewrite Z2R_Zpower. 2: now apply Zlt_le_weak.
+rewrite Z2R_Zpower. 2: apply Zlt_le_weak, prec_gt_0.
 apply Rmult_lt_reg_r with (bpow ex).
 apply bpow_gt_0.
 rewrite <- bpow_plus.
@@ -98,27 +136,24 @@ apply Zle_max_l.
 apply Zle_max_r.
 Qed.
 
-
 Theorem FLT_format_bpow :
   forall e, (emin <= e)%Z -> generic_format beta FLT_exp (bpow e).
 Proof.
 intros e He.
 apply generic_format_bpow; unfold FLT_exp.
 apply Z.max_case; try assumption.
-unfold Prec_gt_0 in prec_gt_0_; omega.
+generalize (prec_gt_0 prec) ; omega.
 Qed.
-
-
-
 
 Theorem FLT_format_satisfies_any :
   satisfies_any FLT_format.
 Proof.
-refine (satisfies_any_eq _ _ _ (generic_format_satisfies_any beta FLT_exp)).
+eapply satisfies_any_eq.
 intros x.
 split.
 apply FLT_format_generic.
 apply generic_format_FLT.
+apply generic_format_satisfies_any.
 Qed.
 
 Theorem cexp_FLT_FLX :
@@ -157,11 +192,11 @@ now rewrite cexp_FLT_FLX.
 Qed.
 
 Theorem generic_format_FLX_FLT :
-  forall x : R,
-  generic_format beta FLT_exp x -> generic_format beta (FLX_exp prec) x.
+  forall (prec : Z) (x : R),
+  generic_format beta (FLT_exp' prec) x -> generic_format beta (FLX_exp prec) x.
 Proof.
-clear prec_gt_0_.
-intros x Hx.
+clear prec.
+intros prec x Hx.
 unfold generic_format in Hx; rewrite Hx.
 apply generic_format_F2R.
 intros _.
@@ -198,12 +233,12 @@ now apply Hex.
 Qed.
 
 Theorem generic_format_FIX_FLT :
-  forall x : R,
-  generic_format beta FLT_exp x ->
+  forall (prec : Z) (x : R),
+  generic_format beta (FLT_exp' prec) x ->
   generic_format beta (FIX_exp emin) x.
 Proof.
-clear prec_gt_0_.
-intros x Hx.
+clear prec.
+intros prec x Hx.
 rewrite Hx.
 apply generic_format_F2R.
 intros _.
@@ -216,18 +251,20 @@ Theorem generic_format_FLT_FIX :
   (Rabs x <= bpow (emin + prec))%R ->
   generic_format beta (FIX_exp emin) x ->
   generic_format beta FLT_exp x.
-Proof with auto with typeclass_instances.
-apply generic_inclusion_le...
+Proof.
+apply generic_inclusion_le.
 intros e He.
+simpl.
 unfold FIX_exp.
 apply Zmax_lub.
 omega.
 apply Zle_refl.
 Qed.
 
-Theorem ulp_FLT_small: forall x, (Rabs x < bpow (emin+prec))%R ->
-    ulp beta FLT_exp x = bpow emin.
-Proof with auto with typeclass_instances.
+Theorem ulp_FLT_small :
+  forall x : R, (Rabs x < bpow (emin+prec))%R ->
+  ulp beta FLT_exp x = bpow emin.
+Proof.
 intros x Hx.
 unfold ulp; case Req_bool_spec; intros Hx2.
 (* x = 0 *)
@@ -237,10 +274,12 @@ apply Zle_not_lt; unfold FLT_exp.
 apply Zle_trans with (2:=Z.le_max_r _ _); omega.
 assert (V:FLT_exp emin = emin).
 unfold FLT_exp; apply Z.max_r.
-unfold Prec_gt_0 in prec_gt_0_; omega.
+generalize (prec_gt_0 prec) ; omega.
 intros n H2; rewrite <-V.
-apply f_equal, fexp_negligible_exp_eq...
-omega.
+apply f_equal, fexp_negligible_exp_eq.
+exact H2.
+simpl.
+now rewrite V.
 (* x <> 0 *)
 apply f_equal; unfold cexp, FLT_exp.
 apply Z.max_r.
@@ -293,12 +332,11 @@ apply bpow_le.
 apply Z.le_max_l.
 Qed.
 
-
-
 (** FLT is a nice format: it has a monotone exponent... *)
-Global Instance FLT_exp_monotone : Monotone_exp FLT_exp.
+Global Instance FLT_exp_monotone : Monotone_exp FLT_exp_valid.
 Proof.
 intros ex ey.
+simpl.
 unfold FLT_exp.
 zify ; omega.
 Qed.
@@ -306,12 +344,13 @@ Qed.
 (** and it allows a rounding to nearest, ties to even. *)
 Hypothesis NE_prop : Zeven beta = false \/ (1 < prec)%Z.
 
-Global Instance exists_NE_FLT : Exists_NE beta FLT_exp.
+Global Instance exists_NE_FLT : Exists_NE beta FLT_exp_valid.
 Proof.
 destruct NE_prop as [H|H].
 now left.
 right.
 intros e.
+simpl.
 unfold FLT_exp.
 destruct (Zmax_spec (e - prec) emin) as [(H1,H2)|(H1,H2)] ;
   rewrite H2 ; clear H2.
@@ -322,5 +361,7 @@ generalize (Zmax_spec (e + 1 - prec) emin).
 generalize (Zmax_spec (emin + 1 - prec) emin).
 omega.
 Qed.
+
+End Prec_gt_0.
 
 End RND_FLT.

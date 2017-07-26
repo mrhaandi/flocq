@@ -27,9 +27,11 @@ Variable beta : radix.
 
 Notation bpow e := (bpow beta e).
 
-Variable emin prec : Z.
+Variable emin : Z.
 
-Context { prec_gt_0_ : Prec_gt_0 prec }.
+Section prec.
+
+Variable prec : Z.
 
 Inductive FTZ_format (x : R) : Prop :=
   FTZ_spec (f : float beta) :
@@ -41,44 +43,82 @@ Inductive FTZ_format (x : R) : Prop :=
 Definition FTZ_exp e := if Zlt_bool (e - prec) emin then (emin + prec - 1)%Z else (e - prec)%Z.
 
 (** Properties of the FTZ format *)
-Global Instance FTZ_exp_valid : Valid_exp FTZ_exp.
+
+Lemma FTZ_exp_valid1 :
+  forall k : Z, (FTZ_exp k < k)%Z ->
+  (FTZ_exp (k + 1) <= k)%Z.
 Proof.
 intros k.
 unfold FTZ_exp.
 generalize (Zlt_cases (k - prec) emin).
 case (Zlt_bool (k - prec) emin) ; intros H1.
-split ; intros H2.
 omega.
-split.
+intros H2.
 generalize (Zlt_cases (emin + prec + 1 - prec) emin).
 case (Zlt_bool (emin + prec + 1 - prec) emin) ; intros H3.
 omega.
-generalize (Zlt_cases (emin + prec - 1 + 1 - prec) emin).
-generalize (prec_gt_0 prec).
-case (Zlt_bool (emin + prec - 1 + 1 - prec) emin) ; omega.
-intros l H3.
-generalize (Zlt_cases (l - prec) emin).
-case (Zlt_bool (l - prec) emin) ; omega.
-split ; intros H2.
 generalize (Zlt_cases (k + 1 - prec) emin).
 case (Zlt_bool (k + 1 - prec) emin) ; omega.
-generalize (prec_gt_0 prec).
-split ; intros ; omega.
 Qed.
 
-Theorem FLXN_format_FTZ :
-  forall x, FTZ_format x -> FLXN_format beta prec x.
+End prec.
+
+Section Prec_gt_0.
+
+Variable prec : Prec_gt_0.
+
+Local Notation FTZ_exp' := FTZ_exp (only parsing).
+Local Notation FTZ_format' := FTZ_format (only parsing).
+Notation FTZ_exp := (FTZ_exp prec).
+Notation FTZ_format := (FTZ_format prec).
+
+Lemma FTZ_exp_valid2 :
+  forall k : Z, (k <= FTZ_exp k)%Z ->
+  (FTZ_exp (FTZ_exp k + 1) <= FTZ_exp k)%Z.
 Proof.
-intros x [[xm xe] Hx1 Hx2 Hx3].
+intros k.
+unfold FTZ_exp.
+generalize (Zlt_cases (k - prec) emin).
+generalize (prec_gt_0 prec).
+case (Zlt_bool (k - prec) emin) ; intros H1 H2.
+generalize (Zlt_cases (emin + prec - 1 + 1 - prec) emin).
+case (Zlt_bool (emin + prec - 1 + 1 - prec) emin) ; omega.
+omega.
+Qed.
+
+Lemma FTZ_exp_valid3 :
+  forall k l : Z,
+  (k <= FTZ_exp k)%Z -> (l <= FTZ_exp k)%Z ->
+  FTZ_exp l = FTZ_exp k.
+Proof.
+intros k l.
+unfold FTZ_exp.
+generalize (Zlt_cases (k - prec) emin).
+case (Zlt_bool (k - prec) emin) ; intros H1 H2 H3.
+generalize (Zlt_cases (l - prec) emin).
+case (Zlt_bool (l - prec) emin) ; omega.
+generalize (prec_gt_0 prec).
+omega.
+Qed.
+
+Canonical Structure FTZ_exp_valid :=
+  Build_Valid_exp FTZ_exp (FTZ_exp_valid1 prec) FTZ_exp_valid2 FTZ_exp_valid3.
+
+Theorem FLXN_format_FTZ :
+  forall prec x, FTZ_format' prec x -> FLXN_format beta prec x.
+Proof.
+clear prec.
+intros prec x [[xm xe] Hx1 Hx2 Hx3].
 eexists.
 exact Hx1.
 exact Hx2.
 Qed.
 
 Theorem generic_format_FTZ :
-  forall x, FTZ_format x -> generic_format beta FTZ_exp x.
+  forall prec x, FTZ_format' prec x -> generic_format beta (FTZ_exp' prec) x.
 Proof.
-intros x Hx.
+clear prec.
+intros prec x Hx.
 cut (generic_format beta (FLX_exp prec) x).
 apply generic_inclusion_mag.
 intros Zx.
@@ -89,6 +129,7 @@ assert (Zxm: xm <> Z0).
 contradict Zx.
 rewrite Hx1, Zx.
 apply F2R_0.
+simpl.
 unfold FTZ_exp, FLX_exp.
 rewrite Zlt_bool_false.
 apply Zle_refl.
@@ -148,7 +189,7 @@ change (bpow (ex - 1) <= F2R (Float beta (Zabs (Ztrunc (x * bpow (- (ex - prec))
 rewrite F2R_Zabs, <- Hx2.
 apply Hx4.
 apply Zle_minus_le_0.
-now apply (Zlt_le_succ 0).
+apply (Zlt_le_succ 0), prec.
 apply lt_Z2R.
 rewrite Z2R_Zpower.
 apply Rmult_lt_reg_r with (bpow (ex - prec)).
@@ -158,18 +199,19 @@ replace (prec + (ex - prec))%Z with ex by ring.
 change (F2R (Float beta (Zabs (Ztrunc (x * bpow (- (ex - prec))))) (ex - prec)) < bpow ex)%R.
 rewrite F2R_Zabs, <- Hx2.
 apply Hx4.
-now apply Zlt_le_weak.
+apply Zlt_le_weak, prec.
 now apply Zge_le.
 Qed.
 
 Theorem FTZ_format_satisfies_any :
   satisfies_any FTZ_format.
 Proof.
-refine (satisfies_any_eq _ _ _ (generic_format_satisfies_any beta FTZ_exp)).
+eapply satisfies_any_eq.
 intros x.
 split.
 apply FTZ_format_generic.
 apply generic_format_FTZ.
+apply generic_format_satisfies_any.
 Qed.
 
 Theorem FTZ_format_FLXN :
@@ -183,24 +225,27 @@ apply generic_format_FLXN in Fx.
 revert Hx Fx.
 apply generic_inclusion_ge.
 intros e He.
-unfold FTZ_exp.
+simpl. unfold FTZ_exp.
 rewrite Zlt_bool_false.
 apply Zle_refl.
 omega.
 Qed.
 
-Theorem ulp_FTZ_0: ulp beta FTZ_exp 0 = bpow (emin+prec-1).
-Proof with auto with typeclass_instances.
+Theorem ulp_FTZ_0 :
+  ulp beta FTZ_exp 0 = bpow (emin+prec-1).
+Proof.
 unfold ulp; rewrite Req_bool_true; trivial.
 case (negligible_exp_spec FTZ_exp).
 intros T; specialize (T (emin-1)%Z); contradict T.
-apply Zle_not_lt; unfold FTZ_exp; unfold Prec_gt_0 in prec_gt_0_.
+apply Zle_not_lt; unfold FTZ_exp.
+assert (H := prec_gt_0 prec).
 rewrite Zlt_bool_true; omega.
 assert (V:(FTZ_exp (emin+prec-1) = emin+prec-1)%Z).
 unfold FTZ_exp; rewrite Zlt_bool_true; omega.
 intros n H2; rewrite <-V.
-apply f_equal, fexp_negligible_exp_eq...
-omega.
+apply f_equal, fexp_negligible_exp_eq with (1 := H2).
+simpl.
+now rewrite V.
 Qed.
 
 
@@ -341,5 +386,7 @@ apply bpow_ge_0.
 Qed.
 
 End FTZ_round.
+
+End Prec_gt_0.
 
 End RND_FTZ.
