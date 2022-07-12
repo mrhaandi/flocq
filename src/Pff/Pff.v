@@ -1719,7 +1719,7 @@ repeat rewrite Zpower_nat_is_exp.
 repeat rewrite Zabs_Zmult; auto.
 apply Zle_Zmult_comp_l; auto with zarith.
 apply Zle_Zmult_comp_l; auto with zarith.
-repeat rewrite Z.abs_eq; auto with zarith.
+repeat rewrite Z.abs_eq.
 apply Zpower_nat_monotone_le; lia.
 apply Zpower_NR0; lia.
 apply Zpower_NR0; lia.
@@ -13943,7 +13943,7 @@ rewrite Z.abs_eq in H3; auto with zarith.
 rewrite Z.abs_eq in H3; [idtac|apply LeR0Fnum with radix; auto with zarith real].
 rewrite Zmult_comm with (Fnum x) radix.
 apply Z.le_trans with (2:=H3); rewrite pGivesBound.
-pattern t at 2; replace t with (1+(pred t)); auto with zarith.
+pattern t at 2; replace t with (1+(pred t)); [|auto with zarith].
 rewrite Zpower_nat_is_exp.
 replace ( Zpower_nat radix 1) with radix;[idtac|unfold Zpower_nat; simpl]; auto with zarith.
 unfold Zminus; rewrite plus_IZR; rewrite Ropp_Ropp_IZR; rewrite Zpower_nat_Z_powerRZ.
@@ -21657,7 +21657,7 @@ apply Ft.
 rewrite <- Zabs_Zopp; rewrite Z.abs_eq; auto with zarith.
 apply Z.lt_le_trans with 3%Z; auto with zarith.
 apply Z.le_trans with (nNormMin radix precision); auto with zarith.
-unfold nNormMin; apply Z.le_trans with (Zpower_nat radix 2); auto with zarith.
+unfold nNormMin; apply Z.le_trans with (Zpower_nat radix 2).
 simpl; auto with zarith.
 apply Zpower_nat_monotone_le; auto with zarith.
 apply nNrMMimLevNum; auto with zarith.
@@ -25383,7 +25383,7 @@ apply Rle_trans with (3*powerRZ radix (Fexp ph))%R;
 2: apply IZR_neq; lia.
 apply Rmult_le_compat_r; auto with real zarith.
 apply powerRZ_le, IZR_lt; lia.
-apply Rle_trans with (2+1)%R; auto with real.
+apply Rle_trans with (2+1)%R; [auto with real|].
 apply Rplus_le_compat_l; apply Rle_trans with (/1)%R; auto with real.
 right; ring.
 apply FcanonicLeastExp with radix bo p; auto with zarith.
